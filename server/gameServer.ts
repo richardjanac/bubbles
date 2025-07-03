@@ -170,11 +170,11 @@ export class GameServer {
 
   private updateBotAI(bot: PlayerBubble, deltaTime: number) {
     // Jednoduchá AI pre botov: Nájdi najbližšiu korisť
-    let bestTarget: TargetableEntity | null = null;
+    let bestTarget: (PlayerBubble | NPCBubble) | null = null;
     let nearestDistance = Infinity;
 
     // Spoj všetkých hráčov a NPC do jedného zoznamu cieľov
-    const allTargets: TargetableEntity[] = [
+    const allTargets: (PlayerBubble | NPCBubble)[] = [
       ...Object.values(this.gameState.players),
       ...Object.values(this.gameState.npcBubbles)
     ];
