@@ -169,35 +169,36 @@ export class GameServer {
   }
 
   private updateBotAI(bot: PlayerBubble, deltaTime: number) {
-    // Jednoduchá AI pre botov
-    // Nájdi najbližšiu NPC bublinu alebo menšieho hráča
-    let nearestTarget: TargetableEntity | null = null;
+    // Jednoduchá AI pre botov: Nájdi najbližšiu korisť
+    let bestTarget: TargetableEntity | null = null;
     let nearestDistance = Infinity;
 
-    // Hľadaj NPC bubliny
-    Object.values(this.gameState.npcBubbles).forEach(npc => {
-      const distance = this.getDistance(bot.position, npc.position);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestTarget = npc;
-      }
-    });
+    // Spoj všetkých hráčov a NPC do jedného zoznamu cieľov
+    const allTargets: TargetableEntity[] = [
+      ...Object.values(this.gameState.players),
+      ...Object.values(this.gameState.npcBubbles)
+    ];
 
-    // Hľadaj menších hráčov
-    Object.values(this.gameState.players).forEach(player => {
-      if (player.id !== bot.id && player.score < bot.score) {
-        const distance = this.getDistance(bot.position, player.position);
+    allTargets.forEach(target => {
+      // Bot nemôže zjesť sám seba (dôležitá kontrola)
+      if ('id' in target && target.id === bot.id) {
+        return;
+      }
+
+      // Bot útočí len na menšie ciele
+      if (target.score < bot.score) {
+        const distance = this.getDistance(bot.position, target.position);
         if (distance < nearestDistance) {
           nearestDistance = distance;
-          nearestTarget = player;
+          bestTarget = target;
         }
       }
     });
 
     // Ak máme cieľ, pohybuj sa k nemu
-    if (nearestTarget) {
+    if (bestTarget) {
       const input: PlayerInput = {
-        position: nearestTarget.position,
+        position: bestTarget.position,
         turbo: nearestDistance < 200 && bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2
       };
       this.updatePlayerInput(bot, input);
