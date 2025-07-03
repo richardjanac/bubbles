@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Paddock Bubbles
 
-## Getting Started
+2D online multiplayer bubble hra v štýle .io
 
-First, run the development server:
+## 🎮 O hre
 
+Paddock Bubbles je multiplayer hra, kde hráči ovládajú bubliny s cieľom rásť konzumáciou menších bublín. Hra obsahuje:
+
+- **Levelovací systém** - Po dosiahnutí určitého skóre sa level zvýši a základná rýchlosť sa násobí
+- **Turbo mechanika** - Dvojnásobná rýchlosť za cenu strácania bodov
+- **Bot AI** - Automaticky sa pridávajú boti pre minimálny počet 10 hráčov
+- **Responzívne ovládanie** - Myš na desktope, virtuálny joystick na mobile
+
+## 🚀 Inštalácia a spustenie
+
+1. **Nainštaluj závislosti:**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Spusti vývojový server:**
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Hra pobeží na:
+- Frontend: http://localhost:3000
+- Game Server: http://localhost:3001
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🎯 Ako hrať
 
-## Learn More
+### Desktop ovládanie:
+- **Pohyb**: Bublina nasleduje kurzor myši
+- **Turbo**: Drž medzerník
 
-To learn more about Next.js, take a look at the following resources:
+### Mobilné ovládanie:
+- **Pohyb**: Virtuálny joystick v pravom dolnom rohu
+- **Turbo**: Červené tlačidlo v ľavom dolnom rohu
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📋 Herné mechaniky
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Skóre a veľkosť**: Veľkosť bubliny rastie s počtom bodov
+- **Kolízie**: Väčšia bublina zje menšiu, pri rovnakom skóre sa nič nedeje
+- **Level Up**: 
+  - Level 1 → 2: 500 bodov
+  - Level 2 → 3: 600 bodov
+  - Každý ďalší level: +100 bodov navyše
+- **Turbo**: 2x rýchlosť, stráca 50 bodov/sekundu
 
-## Deploy on Vercel
+## 🛠 Technológie
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Frontend**: Next.js 15, React 19, TypeScript, Canvas API
+- **Backend**: Node.js, Socket.IO
+- **Styling**: Tailwind CSS
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📦 Deployment
+
+Projekt je pripravený na nasadenie na Vercel. Pre produkčné nasadenie:
+
+1. Nastav environment premennú `NEXT_PUBLIC_SERVER_URL` na URL tvojho WebSocket servera
+2. Deploy frontend na Vercel
+3. Deploy game server na podporovanú platformu (napr. Railway, Render)
+
+## 🔧 Konfigurácia
+
+Herné konštanty môžeš upraviť v súbore `types/game.ts`:
+
+```typescript
+export const GAME_CONSTANTS = {
+  MIN_PLAYERS: 10,
+  STARTING_SCORE: 100,
+  BASE_SPEED: 100,
+  TURBO_MULTIPLIER: 2,
+  // ...
+};
+```
