@@ -6,14 +6,18 @@ export interface Vector2 {
   y: number;
 }
 
+// Spoločný interface pre všetky entity, na ktoré môže AI cieliť
+export interface TargetableEntity {
+  position: Vector2;
+  score: number;
+}
+
 // Hráčska bublina
-export interface PlayerBubble {
+export interface PlayerBubble extends TargetableEntity {
   id: string;
   nickname: string;
-  score: number;
   level: number;
   baseSpeed: number;
-  position: Vector2;
   velocity: Vector2;
   color?: string;
   radius?: number;
@@ -24,7 +28,7 @@ export interface PlayerBubble {
 export type BotBubble = PlayerBubble & { isBot: true };
 
 // NPC bublina (jedlo)
-export interface NPCBubble {
+export interface NPCBubble extends TargetableEntity {
   id: string;
   score: number; // vždy 1
   position: Vector2;

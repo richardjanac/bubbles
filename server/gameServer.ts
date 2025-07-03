@@ -11,7 +11,8 @@ import {
   GAME_CONSTANTS,
   calculateRadius,
   calculateLevelUpScore,
-  getLevelColor
+  getLevelColor,
+  TargetableEntity
 } from '../types/game';
 
 // Herný server
@@ -170,7 +171,7 @@ export class GameServer {
   private updateBotAI(bot: PlayerBubble, deltaTime: number) {
     // Jednoduchá AI pre botov
     // Nájdi najbližšiu NPC bublinu alebo menšieho hráča
-    let nearestTarget: { position: Vector2, score: number } | null = null;
+    let nearestTarget: TargetableEntity | null = null;
     let nearestDistance = Infinity;
 
     // Hľadaj NPC bubliny
