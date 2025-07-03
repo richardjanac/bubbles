@@ -11,8 +11,7 @@ import {
   GAME_CONSTANTS,
   calculateRadius,
   calculateLevelUpScore,
-  getLevelColor,
-  TargetableEntity
+  getLevelColor
 } from '../types/game';
 
 // Herný server
@@ -21,7 +20,7 @@ export class GameServer {
   private httpServer;
   private gameState: GameState;
   private lastUpdateTime: number = Date.now();
-  private updateInterval: NodeJS.Timer | null = null;
+  private updateInterval: NodeJS.Timeout | null = null;
 
   constructor(port: number = 3001) {
     this.httpServer = createServer();
@@ -179,10 +178,10 @@ export class GameServer {
       ...Object.values(this.gameState.npcBubbles)
     ];
 
-    allTargets.forEach(target => {
+    for (const target of allTargets) {
       // Bot nemôže zjesť sám seba (dôležitá kontrola)
-      if ('id' in target && target.id === bot.id) {
-        return;
+      if (target.id === bot.id) {
+        continue;
       }
 
       // Bot útočí len na menšie ciele
@@ -193,10 +192,10 @@ export class GameServer {
           bestTarget = target;
         }
       }
-    });
+    }
 
     // Ak máme cieľ, pohybuj sa k nemu
-    if (bestTarget) {
+    if (bestTarget !== null) {
       const input: PlayerInput = {
         position: bestTarget.position,
         turbo: nearestDistance < 200 && bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2

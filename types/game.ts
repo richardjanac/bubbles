@@ -30,8 +30,6 @@ export type BotBubble = PlayerBubble & { isBot: true };
 // NPC bublina (jedlo)
 export interface NPCBubble extends TargetableEntity {
   id: string;
-  score: number; // vždy 1
-  position: Vector2;
 }
 
 // Herný stav
