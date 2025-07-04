@@ -73,9 +73,9 @@ export const GAME_CONSTANTS = {
   COLLISION_OVERLAP: 2, // pixely
   PARTICLE_LIFETIME: 30, // sekúnd
   NPC_BUBBLE_SCORE: 1,
-  LEVEL_UP_BASE: 400,
-  LEVEL_UP_INCREMENT: 100,
-  SPEED_LEVEL_MULTIPLIER: 1.5,
+  LEVEL_UP_BASE: 400, // vrátené na pôvodnú hodnotu
+  LEVEL_UP_INCREMENT: 100, // vrátené na pôvodnú hodnotu
+  SPEED_LEVEL_INCREASE: 50, // nová konštanta - každý level pridá 50 bodov rýchlosti
   SPAWN_PROTECTION_DURATION: 3000, // 3 sekundy v milisekundách
 };
 

@@ -10,7 +10,8 @@ import {
   ServerToClientEvents,
   ClientToServerEvents,
   Vector2,
-  calculateRadius
+  calculateRadius,
+  getLevelColor
 } from '../types/game';
 import Joystick from './Joystick';
 import TurboButton from './TurboButton';
@@ -339,17 +340,57 @@ export default function Game() {
     camera: Vector2,
     zoom: number
   ) => {
+    const screenX = player.position.x - camera.x;
+    const screenY = player.position.y - camera.y;
+
+    // Skip ak je mimo obrazovky
+    if (screenX + player.radius! < 0 || screenX - player.radius! > window.innerWidth / zoom ||
+        screenY + player.radius! < 0 || screenY - player.radius! > window.innerHeight / zoom) {
+      return;
+    }
+
     // Nastav opacity pre chránených hráčov
     if (player.isInvulnerable) {
       ctx.globalAlpha = 0.5;
     }
+
+    ctx.save();
+
+    // Dúhové kruhy - každý level pridá novú farebnú líniu
+    const ringThickness = 3; // hrúbka každého kruhu
+    const ringSpacing = 2; // medzera medzi kruhmi
     
-    drawBubble(ctx, player.position, player.radius!, player.color, camera, zoom);
+    // Vykresli kruhy od vonkajšieho k vnútornému
+    for (let level = player.level; level >= 1; level--) {
+      const ringRadius = player.radius! - (player.level - level) * (ringThickness + ringSpacing);
+      
+      if (ringRadius > 0) {
+        const levelColor = getLevelColor(level);
+        
+        ctx.strokeStyle = levelColor;
+        ctx.lineWidth = ringThickness;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Priehľadná vnútorná výplň
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.beginPath();
+    const innerRadius = Math.max(5, player.radius! - player.level * (ringThickness + ringSpacing));
+    ctx.arc(screenX, screenY, innerRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Odlesk
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, player.radius! * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
 
     // Text v bubline
-    const screenX = player.position.x - camera.x;
-    const screenY = player.position.y - camera.y;
-
     ctx.save();
     ctx.fillStyle = '#333';
     ctx.textAlign = 'center';
@@ -491,7 +532,7 @@ export default function Game() {
                   <span className="text-2xl flex-shrink-0">📈</span>
                   <div>
                     <h3 className="font-semibold text-lg">Level up</h3>
-                    <p>Dosiahni 500 bodov pre ďalší level</p>
+                    <p>Dosiahni 500 bodov pre ďalší level (+50 rýchlosť za level)</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">

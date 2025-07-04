@@ -87,15 +87,19 @@ export class GameServer {
   private createPlayer(id: string, nickname: string, isBot: boolean = false): PlayerBubble {
     const position = this.getRandomPosition();
     const currentTime = Date.now();
+    const startingLevel = GAME_CONSTANTS.STARTING_LEVEL;
+    // Vypočítaj počiatočnú rýchlosť na základe aditivneho systému
+    const baseSpeed = GAME_CONSTANTS.BASE_SPEED + (startingLevel - 1) * GAME_CONSTANTS.SPEED_LEVEL_INCREASE;
+    
     return {
       id,
       nickname: isBot ? `Bot ${Math.floor(Math.random() * 1000)}` : nickname,
       score: GAME_CONSTANTS.STARTING_SCORE,
-      level: GAME_CONSTANTS.STARTING_LEVEL,
-      baseSpeed: GAME_CONSTANTS.BASE_SPEED,
+      level: startingLevel,
+      baseSpeed: baseSpeed,
       position,
       velocity: { x: 0, y: 0 },
-      color: getLevelColor(1),
+      color: getLevelColor(startingLevel),
       radius: calculateRadius(GAME_CONSTANTS.STARTING_SCORE),
       isBot,
       spawnTime: currentTime,
@@ -330,7 +334,8 @@ export class GameServer {
       // Level up!
       player.level++;
       player.score = GAME_CONSTANTS.STARTING_SCORE;
-      player.baseSpeed *= GAME_CONSTANTS.SPEED_LEVEL_MULTIPLIER;
+      // Aditivne zvýšenie rýchlosti - každý level pridá 50 bodov
+      player.baseSpeed = GAME_CONSTANTS.BASE_SPEED + (player.level - 1) * GAME_CONSTANTS.SPEED_LEVEL_INCREASE;
       player.color = getLevelColor(player.level);
       player.radius = calculateRadius(player.score);
       
