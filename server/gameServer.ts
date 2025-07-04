@@ -156,10 +156,9 @@ export class GameServer {
       const dirX = dx / distance;
       const dirY = dy / distance;
       
-      // Nastav rýchlosť
-      const speed = input.turbo && player.score > GAME_CONSTANTS.MIN_TURBO_SCORE
-        ? player.baseSpeed * GAME_CONSTANTS.TURBO_MULTIPLIER
-        : player.baseSpeed;
+      // Nastav rýchlosť - turbo zrýchľuje o 2x
+      const speedMultiplier = input.turbo ? 2.0 : 1.0;
+      const speed = player.baseSpeed * speedMultiplier;
       
       player.velocity = {
         x: dirX * speed,
@@ -295,18 +294,30 @@ export class GameServer {
 
   private createNpcBubblesFromPlayer(position: Vector2, score: number): void {
     const bubblesToCreate = Math.floor(score);
+    const baseRadius = calculateRadius(score);
+    const maxSpreadRadius = baseRadius * 3; // Bubliny sa rozptýlia až 3x ďalej ako bola veľká originálna bublina
+    
     for (let i = 0; i < bubblesToCreate; i++) {
+      // Náhodný uhol v plnom kruhu (0 až 2π)
       const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * calculateRadius(score);
-      const newPos = {
-        x: position.x + Math.cos(angle) * distance,
-        y: position.y + Math.sin(angle) * distance,
-      };
+      
+      // Náhodná vzdialenosť od stredu (0 až maxSpreadRadius)
+      // Používame sqrt pre rovnomernejšie rozloženie v kruhu
+      const distance = Math.sqrt(Math.random()) * maxSpreadRadius;
+      
+      // Vypočítaj novú pozíciu
+      let newX = position.x + Math.cos(angle) * distance;
+      let newY = position.y + Math.sin(angle) * distance;
+      
+      // Uistíme sa, že bublina sa dostane do hraníc mapy
+      const npcRadius = calculateRadius(GAME_CONSTANTS.NPC_BUBBLE_SCORE);
+      newX = Math.max(npcRadius, Math.min(this.gameState.worldSize.width - npcRadius, newX));
+      newY = Math.max(npcRadius, Math.min(this.gameState.worldSize.height - npcRadius, newY));
 
       const npc: NPCBubble = {
-        id: `npc_from_player_${Date.now()}_${Math.random()}`,
+        id: `npc_from_player_${Date.now()}_${i}_${Math.random()}`,
         score: GAME_CONSTANTS.NPC_BUBBLE_SCORE,
-        position: newPos,
+        position: { x: newX, y: newY },
       };
       this.gameState.npcBubbles[npc.id] = npc;
     }
@@ -329,14 +340,52 @@ export class GameServer {
 
   private updateTurbo(player: PlayerBubble, deltaTime: number, isTurboActive: boolean) {
     if (isTurboActive && player.score > GAME_CONSTANTS.MIN_TURBO_SCORE) {
-      const scoreToDrain = Math.floor(GAME_CONSTANTS.TURBO_DRAIN_RATE * deltaTime);
+      // Vypočítaj smer pohybu hráča
+      const velocityMagnitude = Math.sqrt(player.velocity.x * player.velocity.x + player.velocity.y * player.velocity.y);
       
-      for (let i = 0; i < scoreToDrain; i++) {
-        player.score = Math.max(GAME_CONSTANTS.MIN_TURBO_SCORE, player.score - 1);
+      // Turbo funguje len ak sa hráč pohybuje
+      if (velocityMagnitude > 0) {
+        // Normalizuj smer pohybu - vypúšťaj bubliny ZA hráčom (opačný smer pohybu)
+        const directionX = -player.velocity.x / velocityMagnitude;
+        const directionY = -player.velocity.y / velocityMagnitude;
+        
+        // Vypočítaj počet bublín na vypustenie (závisí od delta time)
+        const bubblesPerSecond = GAME_CONSTANTS.TURBO_DRAIN_RATE;
+        const bubblesToEject = Math.max(1, Math.floor(bubblesPerSecond * deltaTime)); // Minimálne 1 bublina za frame
+        
+        for (let i = 0; i < bubblesToEject && player.score > GAME_CONSTANTS.MIN_TURBO_SCORE; i++) {
+          // Vypusti NPC bublinu za hráčom
+          this.ejectNpcBubble(player, directionX, directionY);
+          
+          // Zníž skóre hráča
+          player.score = Math.max(GAME_CONSTANTS.MIN_TURBO_SCORE, player.score - 1);
+        }
+        
+        // Aktualizuj polomer hráča
+        player.radius = calculateRadius(player.score);
       }
-      
-      player.radius = calculateRadius(player.score);
     }
+  }
+
+  private ejectNpcBubble(player: PlayerBubble, directionX: number, directionY: number): void {
+    // Vypočítaj pozíciu na okraji hráčovej bubliny s väčšou vzdialenosťou
+    const ejectionDistance = player.radius! + calculateRadius(GAME_CONSTANTS.NPC_BUBBLE_SCORE) + 20; // +20 pre väčšiu medzeru
+    
+    const startX = player.position.x + directionX * ejectionDistance;
+    const startY = player.position.y + directionY * ejectionDistance;
+    
+    // Uisti sa, že bublina je v hraniciach mapy
+    const npcRadius = calculateRadius(GAME_CONSTANTS.NPC_BUBBLE_SCORE);
+    const clampedX = Math.max(npcRadius, Math.min(this.gameState.worldSize.width - npcRadius, startX));
+    const clampedY = Math.max(npcRadius, Math.min(this.gameState.worldSize.height - npcRadius, startY));
+
+    const npc: NPCBubble = {
+      id: `npc_turbo_${Date.now()}_${Math.random()}`,
+      score: GAME_CONSTANTS.NPC_BUBBLE_SCORE,
+      position: { x: clampedX, y: clampedY }
+    };
+    
+    this.gameState.npcBubbles[npc.id] = npc;
   }
 
   private updatePhysics(deltaTime: number) {

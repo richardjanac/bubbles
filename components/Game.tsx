@@ -400,7 +400,7 @@ export default function Game() {
     // Score board v ľavom hornom rohu
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(10, 10, 170, 90);
+    ctx.fillRect(10, 10, 170, 110);
     
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '18px Arial';
@@ -409,6 +409,13 @@ export default function Game() {
     ctx.fillText(`Score: ${player.score}`, 20, 52);
     ctx.fillText(`Speed: ${Math.round(player.baseSpeed)}`, 20, 72);
     ctx.fillText(`FPS: ${currentFpsRef.current}`, 20, 92);
+    
+    // Turbo indikátor
+    if (turboActive) {
+      ctx.fillStyle = '#FF6B6B';
+      ctx.fillText(`🚀 TURBO ACTIVE`, 20, 112);
+    }
+    
     ctx.restore();
   };
 
@@ -477,7 +484,7 @@ export default function Game() {
                   <span className="text-2xl flex-shrink-0">⚡</span>
                   <div>
                     <h3 className="font-semibold text-lg">Turbo</h3>
-                    <p>Stlač medzerník (PC) alebo turbo tlačidlo (mobil) pre 2x rýchlosť</p>
+                    <p>Stlač medzerník (PC) alebo turbo tlačidlo (mobil) pre 2x rýchlosť a vypúšťanie NPC bublín za sebou</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
@@ -491,7 +498,7 @@ export default function Game() {
                   <span className="text-2xl flex-shrink-0">⚠️</span>
                   <div>
                     <h3 className="font-semibold text-lg">Pozor</h3>
-                    <p>Turbo spotrebúva body (50/s), minimum 10 bodov</p>
+                    <p>Turbo zrýchľuje 2x, ale spotrebúva body a zmenšuje ťa (33 bublín/s), minimum 5 bodov</p>
                   </div>
                 </div>
               </div>

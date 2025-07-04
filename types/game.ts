@@ -68,8 +68,7 @@ export const GAME_CONSTANTS = {
   STARTING_SCORE: 100,
   STARTING_LEVEL: 1,
   BASE_SPEED: 100, // pixely za sekundu
-  TURBO_MULTIPLIER: 2,
-  TURBO_DRAIN_RATE: 50, // bodov za sekundu
+  TURBO_DRAIN_RATE: 33, // bublín za sekundu (znížené na tretinu pre menej intenzívny efekt)
   MIN_TURBO_SCORE: 5,
   COLLISION_OVERLAP: 2, // pixely
   PARTICLE_LIFETIME: 30, // sekúnd

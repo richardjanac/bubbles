@@ -94,21 +94,22 @@ export default function Joystick({ onMove }: JoystickProps) {
   return (
     <div
       ref={containerRef}
-      className="absolute bottom-8 right-8 w-32 h-32 touch-none"
-      style={{ userSelect: 'none' }}
+      className="absolute w-[8rem] h-[8rem] touch-none"
+      style={{ userSelect: 'none', bottom: '2rem', right: '2rem' }}
     >
       {/* Pozadie joysticku */}
-      <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full border-2 border-white" />
+      <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full border-2 border-white/80" />
       
       {/* Knob */}
       <div
-        className={`absolute w-16 h-16 bg-white bg-opacity-50 rounded-full border-2 border-white transform -translate-x-1/2 -translate-y-1/2 transition-all ${
+        className={`absolute w-[4rem] h-[4rem] bg-white bg-opacity-50 rounded-full border-2 border-white transform -translate-x-1/2 -translate-y-1/2 transition-all ${
           isActive ? 'scale-110' : ''
         }`}
         style={{
-          left: `${centerRef.current.x + knobPosition.x}px`,
-          top: `${centerRef.current.y + knobPosition.y}px`,
-          transition: isActive ? 'none' : 'all 0.2s ease-out'
+          left: `50%`,
+          top: `50%`,
+          transform: `translate(calc(-50% + ${knobPosition.x}px), calc(-50% + ${knobPosition.y}px))`,
+          transition: isActive ? 'none' : 'transform 0.2s ease-out'
         }}
       />
     </div>
