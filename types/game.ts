@@ -22,6 +22,8 @@ export interface PlayerBubble extends TargetableEntity {
   color?: string;
   radius?: number;
   isBot?: boolean;
+  spawnTime?: number; // Čas spawn-u v milisekundách
+  isInvulnerable?: boolean; // Či je hráč chránený
 }
 
 // Bot bublina - identická s hráčskou, ale s príznakom isBot
@@ -75,6 +77,7 @@ export const GAME_CONSTANTS = {
   LEVEL_UP_BASE: 400,
   LEVEL_UP_INCREMENT: 100,
   SPEED_LEVEL_MULTIPLIER: 1.5,
+  SPAWN_PROTECTION_DURATION: 3000, // 3 sekundy v milisekundách
 };
 
 // Helper funkcie

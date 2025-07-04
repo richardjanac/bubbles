@@ -86,6 +86,7 @@ export class GameServer {
 
   private createPlayer(id: string, nickname: string, isBot: boolean = false): PlayerBubble {
     const position = this.getRandomPosition();
+    const currentTime = Date.now();
     return {
       id,
       nickname: isBot ? `Bot ${Math.floor(Math.random() * 1000)}` : nickname,
@@ -96,7 +97,9 @@ export class GameServer {
       velocity: { x: 0, y: 0 },
       color: getLevelColor(1),
       radius: calculateRadius(GAME_CONSTANTS.STARTING_SCORE),
-      isBot
+      isBot,
+      spawnTime: currentTime,
+      isInvulnerable: true
     };
   }
 
@@ -222,6 +225,11 @@ export class GameServer {
         
         // Preskočiť ak už bol hráč odstránený
         if (playersToRemove.includes(playerA.id) || playersToRemove.includes(playerB.id)) {
+          continue;
+        }
+        
+        // Preskočiť kolíziu ak je jeden z hráčov chránený
+        if (playerA.isInvulnerable || playerB.isInvulnerable) {
           continue;
         }
         
@@ -357,6 +365,16 @@ export class GameServer {
       const currentTime = Date.now();
       const deltaTime = (currentTime - this.lastUpdateTime) / 1000; // v sekundách
       this.lastUpdateTime = currentTime;
+
+      // Aktualizuj spawn protection pre všetkých hráčov
+      Object.values(this.gameState.players).forEach(player => {
+        if (player.isInvulnerable && player.spawnTime) {
+          const timeSinceSpawn = currentTime - player.spawnTime;
+          if (timeSinceSpawn >= GAME_CONSTANTS.SPAWN_PROTECTION_DURATION) {
+            player.isInvulnerable = false;
+          }
+        }
+      });
 
       // Aktualizuj AI botov
       Object.values(this.gameState.players).forEach(player => {

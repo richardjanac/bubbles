@@ -161,14 +161,16 @@ export default function Game() {
       if (!player) return;
 
       let targetPosition: Vector2;
+      const zoom = isMobile ? 0.3 : 1.0;
+
       if (isMobile) {
         targetPosition = joystickInputRef.current;
       } else {
         // Prepočítaj mouse pozíciu na world koordináty
-        const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight);
+        const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);
         targetPosition = {
-          x: mousePositionRef.current.x + camera.x,
-          y: mousePositionRef.current.y + camera.y
+          x: (mousePositionRef.current.x / zoom) + camera.x,
+          y: (mousePositionRef.current.y / zoom) + camera.y
         };
       }
 
@@ -227,6 +229,8 @@ export default function Game() {
     window.addEventListener('resize', handleResize);
 
     const render = (timestamp: number = 0) => {
+      const zoom = isMobile ? 0.3 : 1.0;
+
       // FPS counter
       fpsRef.current.frames++;
       const now = Date.now();
@@ -240,14 +244,14 @@ export default function Game() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
-      ctx.scale(dpr, dpr);
+      ctx.scale(dpr * zoom, dpr * zoom);
 
       // Gradient pozadie
-      const gradient = ctx.createLinearGradient(0, 0, 0, window.innerHeight);
+      const gradient = ctx.createLinearGradient(0, 0, 0, window.innerHeight / zoom);
       gradient.addColorStop(0, '#E8F4F8');
       gradient.addColorStop(1, '#D0E8F2');
       ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.fillRect(0, 0, window.innerWidth / zoom, window.innerHeight / zoom);
 
       if (!playerId || !gameState.players[playerId]) {
         animationFrameRef.current = requestAnimationFrame(render);
@@ -255,16 +259,16 @@ export default function Game() {
       }
 
       const player = gameState.players[playerId]!;
-      const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight);
+      const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);
 
       // Render NPC bubliny
       Object.values(gameState.npcBubbles).forEach(npc => {
-        drawBubble(ctx, npc.position, calculateRadius(npc.score), undefined, camera);
+        drawBubble(ctx, npc.position, calculateRadius(npc.score), undefined, camera, zoom);
       });
 
       // Render hráčov
       Object.values(gameState.players).forEach(player => {
-        drawPlayerBubble(ctx, player, camera);
+        drawPlayerBubble(ctx, player, camera, zoom);
       });
 
       // UI overlay
@@ -281,12 +285,12 @@ export default function Game() {
       }
       window.removeEventListener('resize', handleResize);
     };
-  }, [gameState, playerId]);
+  }, [gameState, playerId, isMobile]);
 
-  const calculateCamera = (playerPos: Vector2, screenWidth: number, screenHeight: number) => {
+  const calculateCamera = (playerPos: Vector2, screenWidth: number, screenHeight: number, zoom: number) => {
     return {
-      x: playerPos.x - screenWidth / 2,
-      y: playerPos.y - screenHeight / 2
+      x: playerPos.x - (screenWidth / 2) / zoom,
+      y: playerPos.y - (screenHeight / 2) / zoom
     };
   };
 
@@ -295,14 +299,15 @@ export default function Game() {
     position: Vector2, 
     radius: number, 
     color: string = '#FFFFFF',
-    camera: Vector2
+    camera: Vector2,
+    zoom: number
   ) => {
     const screenX = position.x - camera.x;
     const screenY = position.y - camera.y;
 
     // Skip ak je mimo obrazovky
-    if (screenX + radius < 0 || screenX - radius > window.innerWidth ||
-        screenY + radius < 0 || screenY - radius > window.innerHeight) {
+    if (screenX + radius < 0 || screenX - radius > window.innerWidth / zoom ||
+        screenY + radius < 0 || screenY - radius > window.innerHeight / zoom) {
       return;
     }
 
@@ -331,9 +336,15 @@ export default function Game() {
   const drawPlayerBubble = (
     ctx: CanvasRenderingContext2D,
     player: PlayerBubble,
-    camera: Vector2
+    camera: Vector2,
+    zoom: number
   ) => {
-    drawBubble(ctx, player.position, player.radius!, player.color, camera);
+    // Nastav opacity pre chránených hráčov
+    if (player.isInvulnerable) {
+      ctx.globalAlpha = 0.5;
+    }
+    
+    drawBubble(ctx, player.position, player.radius!, player.color, camera, zoom);
 
     // Text v bubline
     const screenX = player.position.x - camera.x;
@@ -359,6 +370,11 @@ export default function Game() {
     ctx.fillText(`Score: ${player.score}`, screenX, screenY + fontSize * 1.2);
 
     ctx.restore();
+    
+    // Resetuj opacity
+    if (player.isInvulnerable) {
+      ctx.globalAlpha = 1.0;
+    }
   };
 
   const drawParticle = (
@@ -398,20 +414,21 @@ export default function Game() {
 
   if (!isPlaying) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#E8F4F8] to-[#D0E8F2] flex items-center justify-center p-4">
-        <div className="max-w-4xl w-full">
+      <div className="min-h-screen bg-gradient-to-b from-[#E8F4F8] to-[#D0E8F2] flex items-center justify-center p-6">
+        <div className="max-w-5xl w-full">
           {/* Hlavný panel */}
-          <div className="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-8 mb-6">
-            <h1 className="text-5xl font-bold text-center mb-8 text-gray-800">
+          <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 mb-8 text-center">
+            <h1 className="text-6xl font-bold mb-4 text-gray-800">
               🫧 Paddock Bubbles 🫧
             </h1>
+            <p className="text-xl text-gray-600 mb-8">Multiplayer bubble game</p>
             
             {/* Vstupné pole pre nickname */}
-            <div className="max-w-md mx-auto mb-8">
+            <div className="max-w-sm mx-auto">
               <input
                 type="text"
                 placeholder="Zadaj svoje meno"
-                className="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-full focus:border-blue-400 focus:outline-none transition-colors"
+                className="w-full px-8 py-4 text-lg border-2 border-gray-300 rounded-full focus:border-blue-400 focus:outline-none transition-colors mb-4"
                 value={nicknameInput}
                 onChange={(e) => setNicknameInput(e.target.value)}
                 onKeyPress={(e) => {
@@ -423,7 +440,7 @@ export default function Game() {
                 maxLength={20}
               />
               <button
-                className="w-full mt-4 px-6 py-4 text-xl font-bold text-white bg-blue-500 rounded-full hover:bg-blue-600 transform hover:scale-105 transition-all duration-200 shadow-lg"
+                className="w-full px-8 py-4 text-xl font-bold text-white bg-blue-500 rounded-full hover:bg-blue-600 transform hover:scale-105 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:transform-none"
                 onClick={() => {
                   if (nicknameInput.trim()) {
                     setNickname(nicknameInput.trim());
@@ -437,50 +454,65 @@ export default function Game() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid lg:grid-cols-2 gap-8">
             {/* Návod hry */}
-            <div className="bg-white/90 backdrop-blur rounded-2xl shadow-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">📖 Ako hrať</h2>
-              <div className="space-y-3 text-gray-700">
-                <div className="flex items-start">
-                  <span className="text-xl mr-3">🖱️</span>
-                  <p><strong>Ovládanie:</strong> Pohybuj myšou (PC) alebo použij joystick (mobil)</p>
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8">
+              <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">📖 Ako hrať</h2>
+              <div className="space-y-5 text-gray-700">
+                <div className="flex items-start space-x-4">
+                  <span className="text-2xl flex-shrink-0">🖱️</span>
+                  <div>
+                    <h3 className="font-semibold text-lg">Ovládanie</h3>
+                    <p>Pohybuj myšou (PC) alebo použij joystick (mobil)</p>
+                  </div>
                 </div>
-                <div className="flex items-start">
-                  <span className="text-xl mr-3">🍽️</span>
-                  <p><strong>Jedz menšie bubliny:</strong> Zväčšuj sa jedením NPC a menších hráčov</p>
+                <div className="flex items-start space-x-4">
+                  <span className="text-2xl flex-shrink-0">🍽️</span>
+                  <div>
+                    <h3 className="font-semibold text-lg">Jedz menšie bubliny</h3>
+                    <p>Zväčšuj sa jedením NPC a menších hráčov</p>
+                  </div>
                 </div>
-                <div className="flex items-start">
-                  <span className="text-xl mr-3">⚡</span>
-                  <p><strong>Turbo:</strong> Stlač medzerník (PC) alebo turbo tlačidlo (mobil) pre 2x rýchlosť</p>
+                <div className="flex items-start space-x-4">
+                  <span className="text-2xl flex-shrink-0">⚡</span>
+                  <div>
+                    <h3 className="font-semibold text-lg">Turbo</h3>
+                    <p>Stlač medzerník (PC) alebo turbo tlačidlo (mobil) pre 2x rýchlosť</p>
+                  </div>
                 </div>
-                <div className="flex items-start">
-                  <span className="text-xl mr-3">📈</span>
-                  <p><strong>Level up:</strong> Dosiahni 500 bodov pre ďalší level</p>
+                <div className="flex items-start space-x-4">
+                  <span className="text-2xl flex-shrink-0">📈</span>
+                  <div>
+                    <h3 className="font-semibold text-lg">Level up</h3>
+                    <p>Dosiahni 500 bodov pre ďalší level</p>
+                  </div>
                 </div>
-                <div className="flex items-start">
-                  <span className="text-xl mr-3">⚠️</span>
-                  <p><strong>Pozor:</strong> Turbo spotrebúva body (50/s), minimum 10 bodov</p>
+                <div className="flex items-start space-x-4">
+                  <span className="text-2xl flex-shrink-0">⚠️</span>
+                  <div>
+                    <h3 className="font-semibold text-lg">Pozor</h3>
+                    <p>Turbo spotrebúva body (50/s), minimum 10 bodov</p>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Leaderboard */}
-            <div className="bg-white/90 backdrop-blur rounded-2xl shadow-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">🏆 Najlepší hráči</h2>
-              <div className="flex justify-center mb-4 bg-gray-200/50 rounded-full p-1">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8">
+              <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">🏆 Najlepší hráči</h2>
+              <div className="flex justify-center mb-6 bg-gray-100 rounded-full p-1 max-w-xs mx-auto">
                 <button
                   onClick={() => setLeaderboardTab('live')}
-                  className={`w-1/2 py-2 rounded-full font-semibold transition-colors ${
-                    leaderboardTab === 'live' ? 'bg-white shadow' : 'text-gray-600'
+                  className={`flex-1 py-3 rounded-full font-semibold transition-colors ${
+                    leaderboardTab === 'live' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
                   Live
                 </button>
                 <button
                   onClick={() => setLeaderboardTab('monthly')}
-                  className={`w-1/2 py-2 rounded-full font-semibold transition-colors ${
-                    leaderboardTab === 'monthly' ? 'bg-white shadow' : 'text-gray-600'
+                  className={`flex-1 py-3 rounded-full font-semibold transition-colors ${
+                    leaderboardTab === 'monthly' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
                   Mesačný
@@ -490,44 +522,47 @@ export default function Game() {
               {leaderboardTab === 'live' && (
                 <>
                   {gameState && Object.values(gameState.players).length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {Object.values(gameState.players)
                         .sort((a, b) => b.level - a.level || b.score - a.score)
-                        .slice(0, 10)
+                        .slice(0, 8)
                         .map((player, index) => (
-                          <div key={player.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
-                            <div className="flex items-center">
-                              <span className="text-lg font-bold mr-3 w-6 text-center">
+                          <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-xl font-bold w-8 text-center">
                                 {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
                               </span>
-                              <span className="font-medium">{player.nickname}</span>
+                              <span className="font-medium text-gray-800">{player.nickname}</span>
                             </div>
                             <div className="text-right">
-                              <span className="text-sm text-gray-600">Lvl {player.level}</span>
-                              <span className="ml-2 text-sm font-bold">{player.score} pts</span>
+                              <div className="text-sm text-blue-600 font-semibold">Lvl {player.level}</div>
+                              <div className="text-sm text-gray-600">{player.score} pts</div>
                             </div>
                           </div>
                         ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-center py-8">Pripájam sa k serveru...</p>
+                    <div className="text-center py-12">
+                      <div className="text-4xl mb-4">🔄</div>
+                      <p className="text-gray-500">Pripájam sa k serveru...</p>
+                    </div>
                   )}
                 </>
               )}
 
               {leaderboardTab === 'monthly' && (
-                <div className="space-y-2">
-                  {monthlyLeaderboardData.map((player, index) => (
-                    <div key={player.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
-                      <div className="flex items-center">
-                        <span className="text-lg font-bold mr-3 w-6 text-center">
+                <div className="space-y-3">
+                  {monthlyLeaderboardData.slice(0, 8).map((player, index) => (
+                    <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl font-bold w-8 text-center">
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
                         </span>
-                        <span className="font-medium">{player.nickname}</span>
+                        <span className="font-medium text-gray-800">{player.nickname}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-sm font-bold text-purple-600">Lvl {player.level}</span>
-                        <span className="ml-3 text-sm text-gray-600">{player.score} pts</span>
+                        <div className="text-sm text-purple-600 font-semibold">Lvl {player.level}</div>
+                        <div className="text-sm text-gray-600">{player.score} pts</div>
                       </div>
                     </div>
                   ))}
