@@ -5,11 +5,11 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:next\" \"npm run dev:server\"",
     "dev:next": "next dev",
-    "dev:server": "tsx watch --tsconfig tsconfig.server.json server/gameServer.ts",
+    "dev:server": "tsx watch --tsconfig tsconfig.server.json server/index.ts",
     "build": "next build",
     "build:server": "tsc --project tsconfig.server.json",
     "start": "next start",
-    "start:server": "tsx server/gameServer.ts",
+    "start:server": "node dist/server/index.js",
     "lint": "next lint"
   },
   "dependencies": {
