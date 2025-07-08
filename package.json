@@ -7,7 +7,9 @@
     "dev:next": "next dev",
     "dev:server": "tsx watch --tsconfig tsconfig.server.json server/gameServer.ts",
     "build": "next build",
+    "build:server": "tsc --project tsconfig.server.json",
     "start": "next start",
+    "start:server": "node dist/gameServer.js",
     "lint": "next lint"
   },
   "dependencies": {
