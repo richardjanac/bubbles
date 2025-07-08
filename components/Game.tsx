@@ -35,19 +35,14 @@ export default function Game() {
   const currentFpsRef = useRef<number>(0);
   const [leaderboard, setLeaderboard] = useState<Array<{nickname: string, level: number, score: number}>>([]);
   const [leaderboardTab, setLeaderboardTab] = useState<'live' | 'monthly'>('live');
+  const [monthlyLeaderboard, setMonthlyLeaderboard] = useState<Array<{id: string, nickname: string, level: number, score: number}>>([]);
+  const [leaderboardStats, setLeaderboardStats] = useState<{totalPlayers: number, topLevel: number, topScore: number}>({
+    totalPlayers: 0,
+    topLevel: 0,
+    topScore: 0
+  });
 
-  const monthlyLeaderboardData = [
-    { id: '1', nickname: 'Bublinátor', level: 99, score: 99999 },
-    { id: '2', nickname: 'SuperNova', level: 95, score: 95000 },
-    { id: '3', nickname: 'Gulička', level: 92, score: 92000 },
-    { id: '4', nickname: 'Lord Bublina', level: 89, score: 89000 },
-    { id: '5', nickname: 'Neptún', level: 85, score: 85000 },
-    { id: '6', nickname: 'Rozpúšťač', level: 82, score: 82000 },
-    { id: '7', nickname: 'Guľový Blesk', level: 80, score: 80000 },
-    { id: '8', nickname: 'Bublinka', level: 78, score: 78000 },
-    { id: '9', nickname: 'Kráľ Gúľ', level: 75, score: 75000 },
-    { id: '10', nickname: 'Majster Guličiek', level: 72, score: 72000 },
-  ];
+  // Odstránené mock dáta - teraz používame skutočné dáta zo servera
 
   // Detekcia mobilného zariadenia
   useEffect(() => {
@@ -69,6 +64,9 @@ export default function Game() {
     socket.on('connect', () => {
       setIsConnected(true);
       socket.emit('join', nickname);
+      // Požiadaj o mesačný leaderboard hneď pri pripojení
+      socket.emit('getMonthlyLeaderboard');
+      socket.emit('getLeaderboardStats');
     });
 
     socket.on('gameState', (state: GameState) => {
@@ -81,6 +79,14 @@ export default function Game() {
       if (playerId && !state.players[playerId]) {
         setIsDead(true);
       }
+    });
+
+    socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
+      setMonthlyLeaderboard(leaderboard);
+    });
+
+    socket.on('leaderboardStats', (stats: {totalPlayers: number, topLevel: number, topScore: number}) => {
+      setLeaderboardStats(stats);
     });
 
     socket.on('bubblePopped', (poppedId: string) => {
@@ -105,11 +111,21 @@ export default function Game() {
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001');
     
     socket.on('connect', () => {
-      // Len počúvame gameState pre leaderboard
+      // Požiadaj o mesačný leaderboard pre hlavné menu
+      socket.emit('getMonthlyLeaderboard');
+      socket.emit('getLeaderboardStats');
     });
     
     socket.on('gameState', (state: GameState) => {
       setGameState(state);
+    });
+
+    socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
+      setMonthlyLeaderboard(leaderboard);
+    });
+
+    socket.on('leaderboardStats', (stats: {totalPlayers: number, topLevel: number, topScore: number}) => {
+      setLeaderboardStats(stats);
     });
     
     return () => {
@@ -349,9 +365,14 @@ export default function Game() {
       return;
     }
 
-    // Nastav opacity pre chránených hráčov
+    // Blikajúci efekt pre chránených hráčov
     if (player.isInvulnerable) {
-      ctx.globalAlpha = 0.5;
+      // Vytvor blikajúci efekt - 3 bliknutia za sekundu
+      const blinkSpeed = 6; // 6 cyklov za sekundu = 3 bliknutia
+      const time = Date.now() / 1000;
+      const blinkCycle = (Math.sin(time * blinkSpeed * Math.PI) + 1) / 2; // 0-1
+      const opacity = 0.5 + blinkCycle * 0.5; // 0.5-1.0
+      ctx.globalAlpha = opacity;
     }
 
     ctx.save();
@@ -463,7 +484,7 @@ export default function Game() {
   if (!isPlaying) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#E8F4F8] to-[#D0E8F2] flex items-center justify-center p-6">
-        <div className="max-w-5xl w-full">
+        <div className="max-w-5xl w-full mx-12 lg:mx-auto">
           {/* Hlavný panel */}
           <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 mb-8 text-center">
             <h1 className="text-6xl font-bold mb-4 text-gray-800">
@@ -558,7 +579,23 @@ export default function Game() {
                   Live
                 </button>
                 <button
-                  onClick={() => setLeaderboardTab('monthly')}
+                  onClick={() => {
+                    setLeaderboardTab('monthly');
+                    // Požiadaj o aktuálny mesačný leaderboard
+                    if (socketRef.current?.connected) {
+                      socketRef.current.emit('getMonthlyLeaderboard');
+                    } else {
+                      // Ak nie sme pripojení v hre, použij nové pripojenie
+                      const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001');
+                      socket.on('connect', () => {
+                        socket.emit('getMonthlyLeaderboard');
+                      });
+                      socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
+                        setMonthlyLeaderboard(leaderboard);
+                        socket.disconnect();
+                      });
+                    }
+                  }}
                   className={`flex-1 py-3 rounded-full font-semibold transition-colors ${
                     leaderboardTab === 'monthly' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
                   }`}
@@ -570,21 +607,34 @@ export default function Game() {
               {leaderboardTab === 'live' && (
                 <>
                   {gameState && Object.values(gameState.players).length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
+                      {/* Header */}
+                      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-semibold text-gray-600 border-b border-gray-200">
+                        <div className="col-span-1 text-center">#</div>
+                        <div className="col-span-6">Hráč</div>
+                        <div className="col-span-2 text-center">Level</div>
+                        <div className="col-span-3 text-right">Skóre</div>
+                      </div>
+                      
+                      {/* Players */}
                       {Object.values(gameState.players)
                         .sort((a, b) => b.level - a.level || b.score - a.score)
                         .slice(0, 8)
                         .map((player, index) => (
-                          <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                            <div className="flex items-center space-x-3">
-                              <span className="text-xl font-bold w-8 text-center">
+                          <div key={player.id} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors items-center">
+                            <div className="col-span-1 text-center">
+                              <span className="text-lg font-bold">
                                 {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
                               </span>
+                            </div>
+                            <div className="col-span-6">
                               <span className="font-medium text-gray-800">{player.nickname}</span>
                             </div>
-                            <div className="text-right">
-                              <div className="text-sm text-blue-600 font-semibold">Lvl {player.level}</div>
-                              <div className="text-sm text-gray-600">{player.score} pts</div>
+                            <div className="col-span-2 text-center">
+                              <span className="text-sm font-semibold text-blue-600">Lvl {player.level}</span>
+                            </div>
+                            <div className="col-span-3 text-right">
+                              <span className="text-sm text-gray-600">{player.score} pts</span>
                             </div>
                           </div>
                         ))}
@@ -599,21 +649,59 @@ export default function Game() {
               )}
 
               {leaderboardTab === 'monthly' && (
-                <div className="space-y-3">
-                  {monthlyLeaderboardData.slice(0, 8).map((player, index) => (
-                    <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-xl font-bold w-8 text-center">
-                          {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
-                        </span>
-                        <span className="font-medium text-gray-800">{player.nickname}</span>
+                <div className="space-y-4">
+                  {/* Štatistiky */}
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-4 border border-purple-100">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-purple-600">{leaderboardStats.totalPlayers}</div>
+                        <div className="text-sm text-gray-600">Celkom hráčov</div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm text-purple-600 font-semibold">Lvl {player.level}</div>
-                        <div className="text-sm text-gray-600">{player.score} pts</div>
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">Lvl {leaderboardStats.topLevel}</div>
+                        <div className="text-sm text-gray-600">Najvyšší level</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-green-600">{leaderboardStats.topScore}</div>
+                        <div className="text-sm text-gray-600">Najvyššie skóre</div>
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Header */}
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-semibold text-gray-600 border-b border-gray-200">
+                    <div className="col-span-1 text-center">#</div>
+                    <div className="col-span-6">Hráč</div>
+                    <div className="col-span-2 text-center">Level</div>
+                    <div className="col-span-3 text-right">Skóre</div>
+                  </div>
+                  
+                  {/* Players */}
+                  {monthlyLeaderboard.length > 0 ? (
+                    monthlyLeaderboard.slice(0, 8).map((player, index) => (
+                      <div key={player.id} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors items-center">
+                        <div className="col-span-1 text-center">
+                          <span className="text-lg font-bold">
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                          </span>
+                        </div>
+                        <div className="col-span-6">
+                          <span className="font-medium text-gray-800">{player.nickname}</span>
+                        </div>
+                        <div className="col-span-2 text-center">
+                          <span className="text-sm font-semibold text-purple-600">Lvl {player.level}</span>
+                        </div>
+                        <div className="col-span-3 text-right">
+                          <span className="text-sm text-gray-600">{player.score} pts</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="text-4xl mb-4">📊</div>
+                      <p className="text-gray-500">Zatiaľ žiadni hráči v mesačnom leaderboarde</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

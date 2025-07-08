@@ -54,12 +54,16 @@ export interface ServerToClientEvents {
   playerLeft: (playerId: string) => void;
   bubblePopped: (bubbleId: string) => void;
   levelUp: (playerId: string, newLevel: number) => void;
+  monthlyLeaderboard: (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => void;
+  leaderboardStats: (stats: {totalPlayers: number, topLevel: number, topScore: number}) => void;
 }
 
 export interface ClientToServerEvents {
   join: (nickname: string) => void;
   updateInput: (input: PlayerInput) => void;
   leave: () => void;
+  getMonthlyLeaderboard: (limit?: number) => void;
+  getLeaderboardStats: () => void;
 }
 
 // Konštanty hry

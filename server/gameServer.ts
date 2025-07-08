@@ -1,5 +1,7 @@
 import { Server } from 'socket.io';
 import { createServer } from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { 
   PlayerBubble, 
   NPCBubble, 
@@ -14,6 +16,15 @@ import {
   getLevelColor
 } from '../types/game';
 
+// Interface pre mesačný leaderboard
+interface MonthlyLeaderboardEntry {
+  id: string;
+  nickname: string;
+  level: number;
+  score: number;
+  timestamp: number;
+}
+
 // Herný server
 export class GameServer {
   private io: Server<ClientToServerEvents, ServerToClientEvents>;
@@ -21,6 +32,8 @@ export class GameServer {
   private gameState: GameState;
   private lastUpdateTime: number = Date.now();
   private updateInterval: NodeJS.Timeout | null = null;
+  private monthlyLeaderboard: MonthlyLeaderboardEntry[] = [];
+  private leaderboardPath: string;
 
   constructor(port: number = 3001) {
     this.httpServer = createServer();
@@ -31,6 +44,10 @@ export class GameServer {
         credentials: true
       }
     });
+
+    // Inicializuj mesačný leaderboard
+    this.leaderboardPath = path.join(__dirname, 'monthlyLeaderboard.json');
+    this.loadMonthlyLeaderboard();
 
     this.gameState = {
       players: {},
@@ -74,6 +91,14 @@ export class GameServer {
         }
       });
 
+      socket.on('getMonthlyLeaderboard', (limit?: number) => {
+        socket.emit('monthlyLeaderboard', this.getMonthlyLeaderboard(limit || 10));
+      });
+
+      socket.on('getLeaderboardStats', () => {
+        socket.emit('leaderboardStats', this.getMonthlyLeaderboardStats());
+      });
+
       socket.on('disconnect', () => {
         delete this.gameState.players[socket.id];
         this.io.emit('playerLeft', socket.id);
@@ -91,9 +116,19 @@ export class GameServer {
     // Vypočítaj počiatočnú rýchlosť na základe aditivneho systému
     const baseSpeed = GAME_CONSTANTS.BASE_SPEED + (startingLevel - 1) * GAME_CONSTANTS.SPEED_LEVEL_INCREASE;
     
+    // Slovenské mená pre botov
+    const slovakNames = [
+      'Marek', 'Peter', 'Jozef', 'Ján', 'Michal', 'František', 'Martin', 'Tomáš',
+      'Pavol', 'Ľuboš', 'Miroslav', 'Dušan', 'Vladimír', 'Róbert', 'Stanislav', 'Igor',
+      'Mária', 'Anna', 'Elena', 'Katarína', 'Marta', 'Eva', 'Zuzana', 'Viera',
+      'Jana', 'Alžbeta', 'Monika', 'Gabriela', 'Andrea', 'Lucia', 'Daniela', 'Iveta'
+    ];
+    
+    const botName = isBot ? slovakNames[Math.floor(Math.random() * slovakNames.length)] : nickname;
+    
     return {
       id,
-      nickname: isBot ? `Bot ${Math.floor(Math.random() * 1000)}` : nickname,
+      nickname: botName,
       score: GAME_CONSTANTS.STARTING_SCORE,
       level: startingLevel,
       baseSpeed: baseSpeed,
@@ -133,16 +168,54 @@ export class GameServer {
       const npc: NPCBubble = {
         id: `npc_${Date.now()}_${Math.random()}`,
         score: GAME_CONSTANTS.NPC_BUBBLE_SCORE,
-        position: this.getRandomPosition()
+        position: this.getRandomPositionForNPC()
       };
       this.gameState.npcBubbles[npc.id] = npc;
     }
   }
 
-  private getRandomPosition(): Vector2 {
+  private getRandomPositionForNPC(): Vector2 {
+    // Pre NPC bubliny použij jednoduchú náhodnú pozíciu (bez kontroly kolízií pre lepšiu výkonnosť)
     return {
       x: Math.random() * this.gameState.worldSize.width,
       y: Math.random() * this.gameState.worldSize.height
+    };
+  }
+
+  private getRandomPosition(): Vector2 {
+    const maxAttempts = 50; // Maximálne 50 pokusov na nájdenie voľného miesta
+    const minDistanceFromPlayers = 150; // Minimálna vzdialenosť od iných hráčov
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Generuj náhodnú pozíciu s ohradom na okraje mapy
+      const margin = 100; // 100px od okraja
+      const position: Vector2 = {
+        x: margin + Math.random() * (this.gameState.worldSize.width - 2 * margin),
+        y: margin + Math.random() * (this.gameState.worldSize.height - 2 * margin)
+      };
+      
+      // Skontroluj kolízie s existujúcimi hráčmi
+      let isSafe = true;
+      for (const player of Object.values(this.gameState.players)) {
+        const distance = this.getDistance(position, player.position);
+        if (distance < minDistanceFromPlayers) {
+          isSafe = false;
+          break;
+        }
+      }
+      
+      // Ak je pozícia bezpečná, vráť ju
+      if (isSafe) {
+        return position;
+      }
+    }
+    
+    // Ak sa nenašla bezpečná pozícia po 50 pokusoch, vráť aspoň náhodnú pozíciu
+    // (lepšie ako nekonečná slučka)
+    console.warn('Nepodarilo sa nájsť bezpečnú spawn pozíciu, používam náhodnú');
+    return {
+      x: 100 + Math.random() * (this.gameState.worldSize.width - 200),
+      y: 100 + Math.random() * (this.gameState.worldSize.height - 200)
     };
   }
 
@@ -174,40 +247,298 @@ export class GameServer {
   }
 
   private updateBotAI(bot: PlayerBubble, deltaTime: number) {
-    // Jednoduchá AI pre botov: Nájdi najbližšiu korisť
-    let bestTarget: (PlayerBubble | NPCBubble) | null = null;
-    let nearestDistance = Infinity;
-
-    // Spoj všetkých hráčov a NPC do jedného zoznamu cieľov
-    const allTargets: (PlayerBubble | NPCBubble)[] = [
-      ...Object.values(this.gameState.players),
-      ...Object.values(this.gameState.npcBubbles)
-    ];
-
-    for (const target of allTargets) {
-      // Bot nemôže zjesť sám seba (dôležitá kontrola)
-      if (target.id === bot.id) {
-        continue;
+    // Pokročilá AI s realistickým ľudským správaním
+    
+    // Pridaj náhodnosť a personálne preferencie bota
+    if (!(bot as any).aiPersonality) {
+      (bot as any).aiPersonality = {
+        aggressiveness: 0.3 + Math.random() * 0.4, // 0.3-0.7
+        cautiousness: 0.2 + Math.random() * 0.6,   // 0.2-0.8
+        patrolRadius: 200 + Math.random() * 300,   // 200-500px
+        lastDirectionChange: Date.now(),
+        currentTarget: null,
+        isPatrolling: false,
+        patrolCenter: { ...bot.position },
+        panicMode: false,
+        lastTurboUse: 0
+      };
+    }
+    
+    const personality = (bot as any).aiPersonality;
+    const currentTime = Date.now();
+    
+    // Analyzuj okolie
+    const analysis = this.analyzeEnvironment(bot);
+    
+    // Rozhodovací systém založený na situácii
+    let decision = this.makeBotDecision(bot, analysis, personality);
+    
+    // Panic mode: ak sú blízko veľkí hráči
+    if (analysis.dangerousEnemies.length > 0) {
+      const closestDanger = analysis.dangerousEnemies[0];
+      if (closestDanger.distance < bot.radius! * 3) {
+        personality.panicMode = true;
+        decision = this.createEscapeDecision(bot, closestDanger.target);
       }
-
-      // Bot útočí len na menšie ciele
-      if (target.score < bot.score) {
-        const distance = this.getDistance(bot.position, target.position);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          bestTarget = target;
+    } else {
+      personality.panicMode = false;
+    }
+    
+    // Ľudské správanie: občasné zmeny smeru
+    if (currentTime - personality.lastDirectionChange > 2000 + Math.random() * 3000) {
+      personality.lastDirectionChange = currentTime;
+      // Občas zmeň stratégiu
+      if (Math.random() < 0.3) {
+        personality.isPatrolling = !personality.isPatrolling;
+        if (personality.isPatrolling) {
+          personality.patrolCenter = { ...bot.position };
         }
       }
     }
-
-    // Ak máme cieľ, pohybuj sa k nemu
-    if (bestTarget !== null) {
-      const input: PlayerInput = {
-        position: bestTarget.position,
-        turbo: nearestDistance < 200 && bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2
-      };
-      this.updatePlayerInput(bot, input);
+    
+    // Aplikuj rozhodnutie
+    if (decision) {
+      this.updatePlayerInput(bot, decision);
     }
+  }
+
+  private analyzeEnvironment(bot: PlayerBubble) {
+    const analysis = {
+      nearbyFood: [] as Array<{target: NPCBubble, distance: number, value: number}>,
+      weakEnemies: [] as Array<{target: PlayerBubble, distance: number, scoreDiff: number}>,
+      dangerousEnemies: [] as Array<{target: PlayerBubble, distance: number, threat: number}>,
+      safeZones: [] as Vector2[],
+      crowdedAreas: [] as Vector2[]
+    };
+    
+    const scanRadius = 400; // Radius skenování
+    
+    // Analyzuj NPC bubliny (jedlo)
+    Object.values(this.gameState.npcBubbles).forEach(npc => {
+      const distance = this.getDistance(bot.position, npc.position);
+      if (distance < scanRadius) {
+        analysis.nearbyFood.push({
+          target: npc,
+          distance,
+          value: npc.score / distance // hodnota vs vzdialenosť
+        });
+      }
+    });
+    
+    // Analyzuj ostatných hráčov
+    Object.values(this.gameState.players).forEach(player => {
+      if (player.id === bot.id) return;
+      
+      const distance = this.getDistance(bot.position, player.position);
+      if (distance < scanRadius) {
+        const scoreDiff = bot.score - player.score;
+        
+        if (scoreDiff > 20) {
+          // Menší hráč = korisť
+          analysis.weakEnemies.push({
+            target: player,
+            distance,
+            scoreDiff
+          });
+        } else if (scoreDiff < -20) {
+          // Väčší hráč = nebezpečenstvo
+          const threat = Math.abs(scoreDiff) / distance;
+          analysis.dangerousEnemies.push({
+            target: player,
+            distance,
+            threat
+          });
+        }
+      }
+    });
+    
+    // Zoradi podľa priority
+    analysis.nearbyFood.sort((a, b) => b.value - a.value);
+    analysis.weakEnemies.sort((a, b) => b.scoreDiff / a.distance - a.scoreDiff / b.distance);
+    analysis.dangerousEnemies.sort((a, b) => b.threat - a.threat);
+    
+    return analysis;
+  }
+
+  private makeBotDecision(bot: PlayerBubble, analysis: any, personality: any): PlayerInput | null {
+    const currentTime = Date.now();
+    
+    // Panic mode - utekaj!
+    if (personality.panicMode) {
+      return this.createEscapeDecision(bot, analysis.dangerousEnemies[0]?.target);
+    }
+    
+    // Agresívni boti: útočia na slabších hráčov
+    if (analysis.weakEnemies.length > 0 && Math.random() < personality.aggressiveness) {
+      const target = analysis.weakEnemies[0];
+      const shouldUseTurbo = target.distance > 200 && 
+                           bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 3 &&
+                           currentTime - personality.lastTurboUse > 5000;
+      
+      if (shouldUseTurbo) {
+        personality.lastTurboUse = currentTime;
+      }
+      
+      return {
+        position: this.predictMovement(target.target),
+        turbo: shouldUseTurbo
+      };
+    }
+    
+    // Opatrní boti: zbierajú jedlo v bezpečí
+    if (analysis.nearbyFood.length > 0 && Math.random() < personality.cautiousness) {
+      const safestFood = this.findSafestFood(bot, analysis);
+      if (safestFood) {
+        return {
+          position: safestFood.position,
+          turbo: false
+        };
+      }
+    }
+    
+    // Patrol mode: pohybuj sa v okolí
+    if (personality.isPatrolling) {
+      return this.createPatrolDecision(bot, personality);
+    }
+    
+    // Základné jedlo zbieranie
+    if (analysis.nearbyFood.length > 0) {
+      return {
+        position: analysis.nearbyFood[0].target.position,
+        turbo: false
+      };
+    }
+    
+    // Náhodné preskúmanie
+    return this.createExploreDecision(bot);
+  }
+
+  private createEscapeDecision(bot: PlayerBubble, danger: PlayerBubble): PlayerInput {
+    if (!danger) {
+      return this.createExploreDecision(bot);
+    }
+    
+    // Utekaj v opačnom smere
+    const escapeVector = {
+      x: bot.position.x - danger.position.x,
+      y: bot.position.y - danger.position.y
+    };
+    
+    const length = Math.sqrt(escapeVector.x * escapeVector.x + escapeVector.y * escapeVector.y);
+    if (length === 0) {
+      // Náhodný smer ak sú na rovnakom mieste
+      const angle = Math.random() * Math.PI * 2;
+      escapeVector.x = Math.cos(angle);
+      escapeVector.y = Math.sin(angle);
+    } else {
+      escapeVector.x /= length;
+      escapeVector.y /= length;
+    }
+    
+    // Utekaj ďaleko
+    const escapeDistance = 300;
+    return {
+      position: {
+        x: bot.position.x + escapeVector.x * escapeDistance,
+        y: bot.position.y + escapeVector.y * escapeDistance
+      },
+      turbo: bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2 // Použij turbo pri úteku
+    };
+  }
+
+  private createPatrolDecision(bot: PlayerBubble, personality: any): PlayerInput {
+    const distanceFromCenter = this.getDistance(bot.position, personality.patrolCenter);
+    
+    if (distanceFromCenter > personality.patrolRadius) {
+      // Vráť sa do patrol oblasti
+      return {
+        position: personality.patrolCenter,
+        turbo: false
+      };
+    }
+    
+    // Pohybuj sa náhodne v patrol oblasti
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * personality.patrolRadius * 0.5;
+    
+    return {
+      position: {
+        x: personality.patrolCenter.x + Math.cos(angle) * distance,
+        y: personality.patrolCenter.y + Math.sin(angle) * distance
+      },
+      turbo: false
+    };
+  }
+
+  private createExploreDecision(bot: PlayerBubble): PlayerInput {
+    // Náhodné preskúmanie s tendenciou smerom k stredu mapy
+    const centerBias = 0.3; // 30% bias smerom k stredu
+    const mapCenter = {
+      x: this.gameState.worldSize.width / 2,
+      y: this.gameState.worldSize.height / 2
+    };
+    
+    let targetX, targetY;
+    
+    if (Math.random() < centerBias) {
+      // Smer k stredu mapy
+      const dirToCenter = {
+        x: mapCenter.x - bot.position.x,
+        y: mapCenter.y - bot.position.y
+      };
+      const length = Math.sqrt(dirToCenter.x * dirToCenter.x + dirToCenter.y * dirToCenter.y);
+      if (length > 0) {
+        dirToCenter.x /= length;
+        dirToCenter.y /= length;
+      }
+      
+      const exploreDistance = 200 + Math.random() * 200;
+      targetX = bot.position.x + dirToCenter.x * exploreDistance;
+      targetY = bot.position.y + dirToCenter.y * exploreDistance;
+    } else {
+      // Úplne náhodný smer
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 150 + Math.random() * 250;
+      targetX = bot.position.x + Math.cos(angle) * distance;
+      targetY = bot.position.y + Math.sin(angle) * distance;
+    }
+    
+    return {
+      position: { x: targetX, y: targetY },
+      turbo: false
+    };
+  }
+
+  private predictMovement(target: PlayerBubble): Vector2 {
+    // Predikcia kde bude cieľ - ako ľudia anticipujú pohyb
+    const prediction = 0.5; // 0.5 sekundy do budúcnosti
+    return {
+      x: target.position.x + target.velocity.x * prediction,
+      y: target.position.y + target.velocity.y * prediction
+    };
+  }
+
+  private findSafestFood(bot: PlayerBubble, analysis: any): NPCBubble | null {
+    // Nájdi jedlo najďalej od nebezpečných hráčov
+    let safestFood = null;
+    let maxSafety = -1;
+    
+    for (const food of analysis.nearbyFood.slice(0, 5)) { // Kontroluj len top 5
+      let minDistanceToDanger = Infinity;
+      
+      for (const danger of analysis.dangerousEnemies) {
+        const distanceToDanger = this.getDistance(food.target.position, danger.target.position);
+        minDistanceToDanger = Math.min(minDistanceToDanger, distanceToDanger);
+      }
+      
+      const safety = minDistanceToDanger / food.distance; // Bezpečnosť vs vzdialenosť
+      if (safety > maxSafety) {
+        maxSafety = safety;
+        safestFood = food.target;
+      }
+    }
+    
+    return safestFood;
   }
 
   private getDistance(a: Vector2, b: Vector2): number {
@@ -276,6 +607,9 @@ export class GameServer {
     const winner = playerA.score > playerB.score ? playerA : playerB;
     const loser = playerA.score > playerB.score ? playerB : playerA;
 
+    // Pridaj porazeného hráča do mesačného leaderboardu
+    this.addToMonthlyLeaderboard(loser);
+
     // Vytvor NPC bubliny z porazeného hráča
     this.createNpcBubblesFromPlayer(loser.position, loser.score);
 
@@ -338,6 +672,10 @@ export class GameServer {
       player.baseSpeed = GAME_CONSTANTS.BASE_SPEED + (player.level - 1) * GAME_CONSTANTS.SPEED_LEVEL_INCREASE;
       player.color = getLevelColor(player.level);
       player.radius = calculateRadius(player.score);
+      
+      // Pridaj level up protection na 3 sekundy
+      player.isInvulnerable = true;
+      player.spawnTime = Date.now(); // Použij rovnaký mechanizmus ako pri spawn protection
       
       this.io.emit('levelUp', player.id, player.level);
     }
@@ -460,6 +798,77 @@ export class GameServer {
       clearInterval(this.updateInterval);
     }
     this.httpServer.close();
+  }
+
+  // Mesačný leaderboard metódy
+  private loadMonthlyLeaderboard() {
+    try {
+      if (fs.existsSync(this.leaderboardPath)) {
+        const data = fs.readFileSync(this.leaderboardPath, 'utf8');
+        this.monthlyLeaderboard = JSON.parse(data);
+        console.log(`Načítaný mesačný leaderboard: ${this.monthlyLeaderboard.length} záznamov`);
+      } else {
+        this.monthlyLeaderboard = [];
+        this.saveMonthlyLeaderboard();
+      }
+    } catch (error) {
+      console.error('Chyba pri načítavaní mesačného leaderboardu:', error);
+      this.monthlyLeaderboard = [];
+    }
+  }
+
+  private saveMonthlyLeaderboard() {
+    try {
+      fs.writeFileSync(this.leaderboardPath, JSON.stringify(this.monthlyLeaderboard, null, 2));
+    } catch (error) {
+      console.error('Chyba pri ukladaní mesačného leaderboardu:', error);
+    }
+  }
+
+  private addToMonthlyLeaderboard(player: PlayerBubble) {
+    // Zaznamenávaj všetkých hráčov vrátane botov
+    const entry: MonthlyLeaderboardEntry = {
+      id: `${Date.now()}_${Math.random()}`,
+      nickname: player.nickname,
+      level: player.level,
+      score: player.score,
+      timestamp: Date.now()
+    };
+
+    // Pridaj do leaderboardu
+    this.monthlyLeaderboard.push(entry);
+
+    // Zoradi podľa levelu a skóre (zostupne)
+    this.monthlyLeaderboard.sort((a, b) => {
+      if (a.level !== b.level) {
+        return b.level - a.level; // Vyšší level má prednosť
+      }
+      return b.score - a.score; // Pri rovnakom leveli vyššie skóre
+    });
+
+    // Udržiavaj všetkých hráčov - neobmedzuj počet
+    // this.monthlyLeaderboard = this.monthlyLeaderboard.slice(0, 50); // Odstránené obmedzenie
+
+    // Ulož do súboru
+    this.saveMonthlyLeaderboard();
+    
+    console.log(`Pridaný do mesačného leaderboardu: ${player.nickname} (Lvl ${player.level}, ${player.score} pts) - Celkom záznamov: ${this.monthlyLeaderboard.length}`);
+  }
+
+  private getMonthlyLeaderboard(limit: number = 10) {
+    return this.monthlyLeaderboard.slice(0, limit); // Vráť top X podľa parametra
+  }
+
+  private getAllMonthlyLeaderboard() {
+    return this.monthlyLeaderboard; // Vráť všetkých
+  }
+
+  private getMonthlyLeaderboardStats() {
+    return {
+      totalPlayers: this.monthlyLeaderboard.length,
+      topLevel: this.monthlyLeaderboard.length > 0 ? this.monthlyLeaderboard[0].level : 0,
+      topScore: this.monthlyLeaderboard.length > 0 ? this.monthlyLeaderboard[0].score : 0
+    };
   }
 }
 
