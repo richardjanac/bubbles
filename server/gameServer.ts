@@ -39,7 +39,9 @@ export class GameServer {
     this.httpServer = createServer();
     this.io = new Server(this.httpServer, {
       cors: {
-        origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+        origin: process.env.NODE_ENV === 'production' ? 
+          process.env.FRONTEND_URL || 'https://bubbles-nrl5.vercel.app' : 
+          ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
         methods: ['GET', 'POST'],
         credentials: true
       }
