@@ -9,7 +9,7 @@
     "build": "next build",
     "build:server": "tsc --project tsconfig.server.json",
     "start": "next start",
-    "start:server": "node dist/gameServer.js",
+    "start:server": "tsx server/gameServer.ts",
     "lint": "next lint"
   },
   "dependencies": {
