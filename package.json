@@ -7,26 +7,28 @@
     "dev:next": "next dev",
     "dev:server": "tsx watch --tsconfig tsconfig.server.json server/gameServer.ts",
     "build": "next build",
-    "build:server": "tsc --project tsconfig.server.json",
     "start": "next start",
-    "start:server": "tsx server/gameServer.ts",
+    "start:server": "node dist/server/index.js",
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "^19",
-    "react-dom": "^19",
     "next": "15.1.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^3.4.1",
-    "tsx": "^4.7.0",
-    "concurrently": "^8.2.2"
-  }
+    "@types/node": "^20.17.13",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "concurrently": "^9.1.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.1.3",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "vercelForceRebuild": "1751999236"
 }
