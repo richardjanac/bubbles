@@ -12,7 +12,6 @@ export default function Joystick({ onMove }: JoystickProps) {
   const [joystickPosition, setJoystickPosition] = useState<Vector2>({ x: 0, y: 0 });
   const [knobOffset, setKnobOffset] = useState<Vector2>({ x: 0, y: 0 });
   const touchIdRef = useRef<number | null>(null);
-  const gameAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Použijeme celú obrazovku ako game area
@@ -166,12 +165,12 @@ export default function Joystick({ onMove }: JoystickProps) {
         zIndex: 2000
       }}
     >
-      {/* Pozadie joysticku */}
-      <div className="absolute inset-0 bg-black bg-opacity-40 rounded-full border-4 border-white/90 shadow-xl" />
+      {/* Pozadie joysticku - priesvitný kruh */}
+      <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full border-2 border-white/60 shadow-xl" />
       
-      {/* Stredový bod pre vizuálnu pomoc */}
+      {/* Stredový referencný bod - STATICKÝ v centre joysticku */}
       <div 
-        className="absolute w-3 h-3 bg-white rounded-full shadow-sm" 
+        className="absolute w-2 h-2 bg-white rounded-full shadow-sm" 
         style={{ 
           left: '50%', 
           top: '50%', 
@@ -180,9 +179,9 @@ export default function Joystick({ onMove }: JoystickProps) {
         }} 
       />
       
-      {/* Knob */}
+      {/* Knob - POHYBLIVÝ okolo referencného bodu */}
       <div
-        className="absolute w-16 h-16 bg-white rounded-full border-4 border-gray-300 shadow-xl"
+        className="absolute w-16 h-16 bg-white rounded-full border-2 border-gray-400 shadow-xl"
         style={{
           left: '50%',
           top: '50%',

@@ -713,11 +713,16 @@ export default function Game() {
   }
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div className="relative w-full h-screen overflow-hidden" style={{ height: '100dvh' }}>
       <canvas
         ref={canvasRef}
         className="fixed inset-0 w-full h-full"
-        style={{ width: '100vw', height: '100vh', cursor: isMobile ? 'default' : 'crosshair' }}
+        style={{ 
+          width: '100vw', 
+          height: '100dvh', 
+          cursor: isMobile ? 'default' : 'crosshair',
+          touchAction: 'none' // Prevent default touch behaviors
+        }}
       />
       
       {isMobile && (
