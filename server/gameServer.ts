@@ -176,9 +176,14 @@ export class GameServer {
     const currentPlayers = Object.keys(this.gameState.players).length;
     const botsNeeded = Math.max(0, GAME_CONSTANTS.MIN_PLAYERS - currentPlayers);
     
+    if (botsNeeded > 0) {
+      console.log(`Pridávam ${botsNeeded} botov (aktuálne: ${currentPlayers}, potrebných: ${GAME_CONSTANTS.MIN_PLAYERS})`);
+    }
+    
     for (let i = 0; i < botsNeeded; i++) {
       const bot = this.createBot();
       this.gameState.players[bot.id] = bot;
+      console.log(`Pridaný bot: ${bot.nickname} (${bot.id})`);
     }
   }
 
@@ -807,9 +812,11 @@ export class GameServer {
       // Generuj NPC bubliny
       this.generateNPCBubbles();
 
-      // Zabezpeč minimálny počet hráčov (každých 10 sekúnd)
-      if (Math.floor(currentTime / 10000) !== Math.floor((currentTime - deltaTime * 1000) / 10000)) {
+      // Zabezpeč minimálny počet hráčov (každých 5 sekúnd)
+      if (Math.floor(currentTime / 5000) !== Math.floor((currentTime - deltaTime * 1000) / 5000)) {
         this.ensureMinimumPlayers();
+        const currentPlayers = Object.keys(this.gameState.players).length;
+        console.log(`Kontrola minimálnych hráčov: ${currentPlayers}/${GAME_CONSTANTS.MIN_PLAYERS}`);
       }
 
       // Pošli aktualizovaný stav všetkým klientom
