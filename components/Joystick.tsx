@@ -8,44 +8,34 @@ interface JoystickProps {
 }
 
 export default function Joystick({ onMove }: JoystickProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [isActive, setIsActive] = useState(false);
-  const [knobPosition, setKnobPosition] = useState<Vector2>({ x: 0, y: 0 });
-  const centerRef = useRef<Vector2>({ x: 0, y: 0 });
+  const [joystickPosition, setJoystickPosition] = useState<Vector2>({ x: 0, y: 0 });
+  const [knobOffset, setKnobOffset] = useState<Vector2>({ x: 0, y: 0 });
   const touchIdRef = useRef<number | null>(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    // Aktualizuj centrum pri zmene veľkosti
-    const updateCenter = () => {
-      const rect = container.getBoundingClientRect();
-      centerRef.current = {
-        x: rect.width / 2,
-        y: rect.height / 2
-      };
-    };
-
-    updateCenter();
-    
-    // Pridaj resize listener
-    const resizeObserver = new ResizeObserver(updateCenter);
-    resizeObserver.observe(container);
+    // Použijeme celú obrazovku ako game area
+    const gameArea = document.body;
 
     const handleTouchStart = (e: TouchEvent) => {
+      if (touchIdRef.current !== null) return; // Už máme aktívny dotyk
+      
       e.preventDefault();
       e.stopPropagation();
       
       const touch = e.changedTouches[0];
       touchIdRef.current = touch.identifier;
+      
+      // Nastav pozíciu joysticku na miesto dotyku
+      setJoystickPosition({
+        x: touch.clientX,
+        y: touch.clientY
+      });
+      
       setIsActive(true);
-      
-      const rect = container.getBoundingClientRect();
-      const x = touch.clientX - rect.left - centerRef.current.x;
-      const y = touch.clientY - rect.top - centerRef.current.y;
-      
-      updateKnobPosition(x, y);
+      setKnobOffset({ x: 0, y: 0 });
+      onMove({ x: 0, y: 0 });
     };
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -55,11 +45,11 @@ export default function Joystick({ onMove }: JoystickProps) {
       const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
 
-      const rect = container.getBoundingClientRect();
-      const x = touch.clientX - rect.left - centerRef.current.x;
-      const y = touch.clientY - rect.top - centerRef.current.y;
+      // Vypočítaj offset od stredu joysticku
+      const offsetX = touch.clientX - joystickPosition.x;
+      const offsetY = touch.clientY - joystickPosition.y;
       
-      updateKnobPosition(x, y);
+      updateKnobPosition(offsetX, offsetY);
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
@@ -69,14 +59,15 @@ export default function Joystick({ onMove }: JoystickProps) {
       const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
 
+      // Skryj joystick a reset
       setIsActive(false);
-      setKnobPosition({ x: 0, y: 0 });
+      setKnobOffset({ x: 0, y: 0 });
       onMove({ x: 0, y: 0 });
       touchIdRef.current = null;
     };
 
     const updateKnobPosition = (x: number, y: number) => {
-      const maxDistance = 45; // Mierne menšia maximálna vzdialenosť pre lepšiu kontrolu
+      const maxDistance = 50; // Maximálna vzdialenosť knob-u od stredu
       const distance = Math.sqrt(x * x + y * y);
       
       if (distance > maxDistance) {
@@ -84,64 +75,119 @@ export default function Joystick({ onMove }: JoystickProps) {
         y = (y / distance) * maxDistance;
       }
 
-      setKnobPosition({ x, y });
+      setKnobOffset({ x, y });
       
       // Normalizuj hodnoty pre output (-1 až 1)
-      // Opravené na správnu detekciu smeru
       onMove({
         x: x / maxDistance,
         y: y / maxDistance
       });
     };
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: false });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd, { passive: false });
-    container.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    // Mouse events pre desktop testing
+    const handleMouseDown = (e: MouseEvent) => {
+      if (touchIdRef.current !== null) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      touchIdRef.current = -1; // Označenie pre mouse
+      
+      setJoystickPosition({
+        x: e.clientX,
+        y: e.clientY
+      });
+      
+      setIsActive(true);
+      setKnobOffset({ x: 0, y: 0 });
+      onMove({ x: 0, y: 0 });
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (touchIdRef.current !== -1) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+
+      const offsetX = e.clientX - joystickPosition.x;
+      const offsetY = e.clientY - joystickPosition.y;
+      
+      updateKnobPosition(offsetX, offsetY);
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (touchIdRef.current !== -1) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+
+      setIsActive(false);
+      setKnobOffset({ x: 0, y: 0 });
+      onMove({ x: 0, y: 0 });
+      touchIdRef.current = null;
+    };
+
+    // Touch events
+    gameArea.addEventListener('touchstart', handleTouchStart, { passive: false });
+    gameArea.addEventListener('touchmove', handleTouchMove, { passive: false });
+    gameArea.addEventListener('touchend', handleTouchEnd, { passive: false });
+    gameArea.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    // Mouse events pre desktop testing
+    gameArea.addEventListener('mousedown', handleMouseDown);
+    gameArea.addEventListener('mousemove', handleMouseMove);
+    gameArea.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
-      container.removeEventListener('touchcancel', handleTouchEnd);
-      resizeObserver.disconnect();
+      gameArea.removeEventListener('touchstart', handleTouchStart);
+      gameArea.removeEventListener('touchmove', handleTouchMove);
+      gameArea.removeEventListener('touchend', handleTouchEnd);
+      gameArea.removeEventListener('touchcancel', handleTouchEnd);
+      
+      gameArea.removeEventListener('mousedown', handleMouseDown);
+      gameArea.removeEventListener('mousemove', handleMouseMove);
+      gameArea.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onMove]);
+  }, [joystickPosition, onMove]);
+
+  // Ak nie je aktívny, joystick sa nezobrazuje
+  if (!isActive) {
+    return null;
+  }
 
   return (
     <div
-      ref={containerRef}
-      className="absolute w-[9rem] h-[9rem] touch-none"
-      style={{ 
-        userSelect: 'none', 
-        bottom: '6rem', // Posunul vyššie
-        right: '2rem',
-        zIndex: 1000
+      className="fixed pointer-events-none"
+      style={{
+        left: joystickPosition.x - 70, // Centruj joystick na pozíciu dotyku (140px / 2)
+        top: joystickPosition.y - 70,
+        width: 140,
+        height: 140,
+        zIndex: 2000
       }}
     >
       {/* Pozadie joysticku */}
-      <div className="absolute inset-0 bg-black bg-opacity-30 rounded-full border-4 border-white/90 shadow-lg" />
+      <div className="absolute inset-0 bg-black bg-opacity-40 rounded-full border-4 border-white/90 shadow-xl" />
       
-      {/* Stredový bod pre vizuálnu pomoc - väčší a tmavší */}
-      <div className="absolute w-3 h-3 bg-black rounded-full shadow-sm" 
-           style={{ 
-             left: '50%', 
-             top: '50%', 
-             transform: 'translate(-50%, -50%)',
-             zIndex: 1002
-           }} />
+      {/* Stredový bod pre vizuálnu pomoc */}
+      <div 
+        className="absolute w-3 h-3 bg-white rounded-full shadow-sm" 
+        style={{ 
+          left: '50%', 
+          top: '50%', 
+          transform: 'translate(-50%, -50%)',
+          zIndex: 2002
+        }} 
+      />
       
       {/* Knob */}
       <div
-        className={`absolute w-[4rem] h-[4rem] bg-white rounded-full border-4 border-gray-300 shadow-lg transition-all ${
-          isActive ? 'scale-110 bg-gray-100 border-gray-400' : ''
-        }`}
+        className="absolute w-16 h-16 bg-white rounded-full border-4 border-gray-300 shadow-xl"
         style={{
           left: '50%',
           top: '50%',
-          transform: `translate(calc(-50% + ${knobPosition.x}px), calc(-50% + ${knobPosition.y}px))`,
-          transition: isActive ? 'none' : 'transform 0.2s ease-out, scale 0.2s ease-out',
-          zIndex: 1001
+          transform: `translate(calc(-50% + ${knobOffset.x}px), calc(-50% + ${knobOffset.y}px))`,
+          zIndex: 2001
         }}
       />
     </div>
