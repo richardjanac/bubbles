@@ -165,28 +165,27 @@ export default function Joystick({ onMove }: JoystickProps) {
         zIndex: 2000
       }}
     >
-      {/* Pozadie joysticku - priesvitný kruh */}
-      <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full border-2 border-white/60 shadow-xl" />
-      
-      {/* Stredový referencný bod - STATICKÝ v centre joysticku */}
+      {/* Statický referencný kruh - 50% opacity */}
       <div 
-        className="absolute w-2 h-2 bg-white rounded-full shadow-sm" 
+        className="absolute w-20 h-20 bg-white rounded-full border-2 border-gray-400 shadow-lg" 
         style={{ 
           left: '50%', 
           top: '50%', 
           transform: 'translate(-50%, -50%)',
-          zIndex: 2002
+          opacity: 0.5,
+          zIndex: 2001
         }} 
       />
       
-      {/* Knob - POHYBLIVÝ okolo referencného bodu */}
+      {/* Pohyblivý knob kruh - 100% opacity */}
       <div
-        className="absolute w-16 h-16 bg-white rounded-full border-2 border-gray-400 shadow-xl"
+        className="absolute w-16 h-16 bg-white rounded-full border-2 border-gray-600 shadow-xl"
         style={{
           left: '50%',
           top: '50%',
           transform: `translate(calc(-50% + ${knobOffset.x}px), calc(-50% + ${knobOffset.y}px))`,
-          zIndex: 2001
+          opacity: 1.0,
+          zIndex: 2002
         }}
       />
     </div>

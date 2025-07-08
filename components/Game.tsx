@@ -725,7 +725,7 @@ export default function Game() {
         }}
       />
       
-      {isMobile && (
+      {isMobile && isPlaying && (
         <>
           <Joystick onMove={handleJoystickMove} />
           <TurboButton 
