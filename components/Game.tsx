@@ -749,9 +749,8 @@ export default function Game() {
             className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
             onClick={() => {
               setIsDead(false);
-              setNickname('');
-              setNicknameInput('');
-              setIsPlaying(false);
+              // Zachovaj nickname a nicknameInput pre opakovanie hry
+              setIsPlaying(true);
               setGameState(null);
               setPlayerId(null);
               if (socketRef.current) {
