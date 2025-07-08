@@ -36,7 +36,17 @@ export class GameServer {
   private leaderboardPath: string;
 
   constructor(port: number = 3001) {
-    this.httpServer = createServer();
+    this.httpServer = createServer((req, res) => {
+      // Jednoduchý health check endpoint
+      if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'OK', timestamp: new Date().toISOString() }));
+        return;
+      }
+      res.writeHead(404);
+      res.end('Not Found');
+    });
+    
     this.io = new Server(this.httpServer, {
       cors: {
         origin: [
@@ -63,8 +73,11 @@ export class GameServer {
     this.setupSocketHandlers();
     this.startGameLoop();
     
-    this.httpServer.listen(port, () => {
+    this.httpServer.listen(port, '0.0.0.0', () => {
       console.log(`Game server beží na porte ${port}`);
+      console.log(`CORS povolený pre domains`);
+      console.log(`Environment: NODE_ENV=${process.env.NODE_ENV}`);
+      console.log(`Health check dostupný na: http://localhost:${port}/health`);
       // Generuj NPC bubliny hneď po štarte
       this.generateNPCBubbles();
     });
