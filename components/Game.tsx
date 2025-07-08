@@ -30,7 +30,7 @@ export default function Game() {
   const [isDead, setIsDead] = useState(false);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const mousePositionRef = useRef<Vector2>({ x: 0, y: 0 });
-  const joystickInputRef = useRef<Vector2>({ x: 0, y: 0 });
+  const joystickInputRef = useRef<Vector2>({ x: 0, y: 0 }); // Smer joysticku (-1 až 1)
   const fpsRef = useRef<{ frames: number; lastTime: number }>({ frames: 0, lastTime: Date.now() });
   const currentFpsRef = useRef<number>(0);
   const [leaderboard, setLeaderboard] = useState<Array<{nickname: string, level: number, score: number}>>([]);
@@ -159,15 +159,9 @@ export default function Game() {
 
   // Joystick handler pre mobile
   const handleJoystickMove = useCallback((direction: Vector2) => {
-    if (!gameState || !playerId) return;
-    const player = gameState.players[playerId];
-    if (!player) return;
-
-    joystickInputRef.current = {
-      x: player.position.x + direction.x * 100,
-      y: player.position.y + direction.y * 100
-    };
-  }, [gameState, playerId]);
+    // Uložíme smer joysticku
+    joystickInputRef.current = direction;
+  }, []);
 
   // Input update loop
   useEffect(() => {
@@ -181,7 +175,14 @@ export default function Game() {
       const zoom = isMobile ? 0.3 : 1.0;
 
       if (isMobile) {
-        targetPosition = joystickInputRef.current;
+        // Pre joystick používame smer na výpočet cieľovej pozície
+        const joystickDirection = joystickInputRef.current;
+        const moveDistance = 200; // Vzdialenosť kam sa má bublina snažiť ísť
+        
+        targetPosition = {
+          x: player.position.x + joystickDirection.x * moveDistance,
+          y: player.position.y + joystickDirection.y * moveDistance
+        };
       } else {
         // Prepočítaj mouse pozíciu na world koordináty
         const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);

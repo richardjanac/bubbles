@@ -18,14 +18,25 @@ export default function Joystick({ onMove }: JoystickProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
-    centerRef.current = {
-      x: rect.width / 2,
-      y: rect.height / 2
+    // Aktualizuj centrum pri zmene veľkosti
+    const updateCenter = () => {
+      const rect = container.getBoundingClientRect();
+      centerRef.current = {
+        x: rect.width / 2,
+        y: rect.height / 2
+      };
     };
+
+    updateCenter();
+    
+    // Pridaj resize listener
+    const resizeObserver = new ResizeObserver(updateCenter);
+    resizeObserver.observe(container);
 
     const handleTouchStart = (e: TouchEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
       const touch = e.changedTouches[0];
       touchIdRef.current = touch.identifier;
       setIsActive(true);
@@ -39,6 +50,8 @@ export default function Joystick({ onMove }: JoystickProps) {
 
     const handleTouchMove = (e: TouchEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
       const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
 
@@ -51,6 +64,8 @@ export default function Joystick({ onMove }: JoystickProps) {
 
     const handleTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
       const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
 
@@ -61,7 +76,7 @@ export default function Joystick({ onMove }: JoystickProps) {
     };
 
     const updateKnobPosition = (x: number, y: number) => {
-      const maxDistance = 50; // Maximálna vzdialenosť knoba od stredu
+      const maxDistance = 45; // Mierne menšia maximálna vzdialenosť pre lepšiu kontrolu
       const distance = Math.sqrt(x * x + y * y);
       
       if (distance > maxDistance) {
@@ -72,6 +87,7 @@ export default function Joystick({ onMove }: JoystickProps) {
       setKnobPosition({ x, y });
       
       // Normalizuj hodnoty pre output (-1 až 1)
+      // Opravené na správnu detekciu smeru
       onMove({
         x: x / maxDistance,
         y: y / maxDistance
@@ -88,28 +104,44 @@ export default function Joystick({ onMove }: JoystickProps) {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
+      resizeObserver.disconnect();
     };
   }, [onMove]);
 
   return (
     <div
       ref={containerRef}
-      className="absolute w-[8rem] h-[8rem] touch-none"
-      style={{ userSelect: 'none', bottom: '2rem', right: '2rem' }}
+      className="absolute w-[9rem] h-[9rem] touch-none"
+      style={{ 
+        userSelect: 'none', 
+        bottom: '6rem', // Posunul vyššie
+        right: '2rem',
+        zIndex: 1000
+      }}
     >
       {/* Pozadie joysticku */}
-      <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full border-2 border-white/80" />
+      <div className="absolute inset-0 bg-black bg-opacity-30 rounded-full border-4 border-white/90 shadow-lg" />
+      
+      {/* Stredový bod pre vizuálnu pomoc - väčší a tmavší */}
+      <div className="absolute w-3 h-3 bg-black rounded-full shadow-sm" 
+           style={{ 
+             left: '50%', 
+             top: '50%', 
+             transform: 'translate(-50%, -50%)',
+             zIndex: 1002
+           }} />
       
       {/* Knob */}
       <div
-        className={`absolute w-[4rem] h-[4rem] bg-white bg-opacity-50 rounded-full border-2 border-white transform -translate-x-1/2 -translate-y-1/2 transition-all ${
-          isActive ? 'scale-110' : ''
+        className={`absolute w-[4rem] h-[4rem] bg-white rounded-full border-4 border-gray-300 shadow-lg transition-all ${
+          isActive ? 'scale-110 bg-gray-100 border-gray-400' : ''
         }`}
         style={{
-          left: `50%`,
-          top: `50%`,
+          left: '50%',
+          top: '50%',
           transform: `translate(calc(-50% + ${knobPosition.x}px), calc(-50% + ${knobPosition.y}px))`,
-          transition: isActive ? 'none' : 'transform 0.2s ease-out'
+          transition: isActive ? 'none' : 'transform 0.2s ease-out, scale 0.2s ease-out',
+          zIndex: 1001
         }}
       />
     </div>

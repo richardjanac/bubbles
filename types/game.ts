@@ -68,7 +68,7 @@ export interface ClientToServerEvents {
 
 // Konštanty hry
 export const GAME_CONSTANTS = {
-  MIN_PLAYERS: 10,
+  MIN_PLAYERS: 5,
   STARTING_SCORE: 100,
   STARTING_LEVEL: 1,
   BASE_SPEED: 100, // pixely za sekundu

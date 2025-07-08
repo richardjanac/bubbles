@@ -80,6 +80,9 @@ export class GameServer {
       console.log(`Health check dostupný na: http://localhost:${port}/health`);
       // Generuj NPC bubliny hneď po štarte
       this.generateNPCBubbles();
+      // Zabezpeč minimálny počet hráčov hneď po štarte
+      this.ensureMinimumPlayers();
+      console.log(`Počiatočný počet hráčov (boti): ${Object.keys(this.gameState.players).length}`);
     });
   }
 
@@ -118,11 +121,15 @@ export class GameServer {
       });
 
       socket.on('disconnect', () => {
+        const wasBot = this.gameState.players[socket.id]?.isBot;
         delete this.gameState.players[socket.id];
         this.io.emit('playerLeft', socket.id);
         console.log('Hráč sa odpojil:', socket.id);
         
-        // Nepridávame botov pri disconnect - len pri kolízii
+        // Ak sa odpojil skutočný hráč (nie bot), zabezpeč minimálny počet hráčov
+        if (!wasBot) {
+          this.ensureMinimumPlayers();
+        }
       });
     });
   }
@@ -635,16 +642,10 @@ export class GameServer {
     delete this.gameState.players[loser.id];
     this.io.emit('bubblePopped', loser.id);
 
-    // Ak to bol bot, pridaj nového len ak je menej ako minimum hráčov
-    if (loser.isBot) {
-      const humanPlayers = Object.values(this.gameState.players).filter(p => !p.isBot).length;
-      const totalPlayers = Object.keys(this.gameState.players).length;
-      
-      // Pridaj nového bota len ak je menej ako minimum
-      if (totalPlayers < GAME_CONSTANTS.MIN_PLAYERS && humanPlayers > 0) {
-        const newBot = this.createBot();
-        this.gameState.players[newBot.id] = newBot;
-      }
+    // Zabezpeč minimálny počet hráčov po kolízii
+    const currentTotalPlayers = Object.keys(this.gameState.players).length;
+    if (currentTotalPlayers < GAME_CONSTANTS.MIN_PLAYERS) {
+      this.ensureMinimumPlayers();
     }
   }
 
@@ -805,6 +806,11 @@ export class GameServer {
 
       // Generuj NPC bubliny
       this.generateNPCBubbles();
+
+      // Zabezpeč minimálny počet hráčov (každých 10 sekúnd)
+      if (Math.floor(currentTime / 10000) !== Math.floor((currentTime - deltaTime * 1000) / 10000)) {
+        this.ensureMinimumPlayers();
+      }
 
       // Pošli aktualizovaný stav všetkým klientom
       this.io.emit('gameState', this.serializeGameState());

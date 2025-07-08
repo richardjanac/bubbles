@@ -17,6 +17,8 @@ export default function TurboButton({ onPress, onRelease }: TurboButtonProps) {
 
     const handleTouchStart = (e: TouchEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
       if (touchIdRef.current !== null) return;
       const touch = e.changedTouches[0];
       touchIdRef.current = touch.identifier;
@@ -25,6 +27,8 @@ export default function TurboButton({ onPress, onRelease }: TurboButtonProps) {
 
     const handleTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
       const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
       if (touch) {
         onRelease();
@@ -46,10 +50,15 @@ export default function TurboButton({ onPress, onRelease }: TurboButtonProps) {
   return (
     <button
       ref={buttonRef}
-      className="absolute w-24 h-24 bg-red-500 bg-opacity-50 text-white font-bold text-xl rounded-full border-4 border-white shadow-lg active:scale-95 transition-transform touch-none"
-      style={{ userSelect: 'none', bottom: '2rem', left: '2rem' }}
+      className="absolute w-28 h-28 bg-red-500 bg-opacity-70 text-white font-bold text-lg rounded-full border-4 border-white shadow-xl active:scale-95 transition-all duration-200 touch-none hover:bg-opacity-80"
+      style={{ 
+        userSelect: 'none', 
+        bottom: '6rem', // Posunul vyššie na rovnakú úroveň ako joystick
+        left: '2rem',
+        zIndex: 1000
+      }}
     >
-      TURBO
+      🚀<br/>TURBO
     </button>
   );
 } 

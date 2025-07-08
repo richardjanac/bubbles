@@ -17,4 +17,4 @@ process.on('SIGINT', () => {
   console.log('Dostali sme SIGINT, zastavujem server...');
   gameServer.stop();
   process.exit(0);
-}); 
+});
