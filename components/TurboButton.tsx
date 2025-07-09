@@ -50,11 +50,13 @@ export default function TurboButton({ onPress, onRelease }: TurboButtonProps) {
   return (
     <button
       ref={buttonRef}
-      className="absolute w-80 h-80 bg-red-500 bg-opacity-70 text-white font-bold text-8xl rounded-full border-4 border-white shadow-xl active:scale-95 transition-all duration-200 touch-none hover:bg-opacity-80 flex items-center justify-center"
+      className="absolute bg-red-500 bg-opacity-70 text-white font-bold text-4xl rounded-full border-4 border-white shadow-xl active:scale-95 transition-all duration-200 touch-none hover:bg-opacity-80 flex items-center justify-center"
       style={{ 
         userSelect: 'none', 
         bottom: '6rem',
         left: '2rem',
+        width: '140px',
+        height: '140px',
         zIndex: 1000
       }}
     >
