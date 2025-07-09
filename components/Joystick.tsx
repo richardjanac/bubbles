@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Vector2 } from '../types/game';
+import { Vector2, GAME_SETTINGS } from '../types/game';
 
 interface JoystickProps {
   onMove: (direction: Vector2) => void;
@@ -158,10 +158,10 @@ export default function Joystick({ onMove }: JoystickProps) {
     <div
       className="fixed pointer-events-none"
       style={{
-        left: joystickPosition.x - 70, // Centruj joystick na pozíciu dotyku (140px / 2)
-        top: joystickPosition.y - 70,
-        width: 140,
-        height: 140,
+        left: joystickPosition.x - GAME_SETTINGS.JOYSTICK_SIZE / 2, // Centruj joystick na pozíciu dotyku
+        top: joystickPosition.y - GAME_SETTINGS.JOYSTICK_SIZE / 2,
+        width: GAME_SETTINGS.JOYSTICK_SIZE,
+        height: GAME_SETTINGS.JOYSTICK_SIZE,
         zIndex: 2000
       }}
     >

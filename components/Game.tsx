@@ -10,6 +10,7 @@ import {
   ServerToClientEvents,
   ClientToServerEvents,
   Vector2,
+  GAME_SETTINGS,
   calculateRadius,
   getLevelColor
 } from '../types/game';
@@ -28,6 +29,7 @@ export default function Game() {
   const [isMobile, setIsMobile] = useState(false);
   const [turboActive, setTurboActive] = useState(false);
   const [isDead, setIsDead] = useState(false);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0); // Nový trigger pre reconnect
   const animationFrameRef = useRef<number | undefined>(undefined);
   const mousePositionRef = useRef<Vector2>({ x: 0, y: 0 });
   const joystickInputRef = useRef<Vector2>({ x: 0, y: 0 }); // Smer joysticku (-1 až 1)
@@ -102,7 +104,7 @@ export default function Game() {
     return () => {
       socket.disconnect();
     };
-  }, [isPlaying, nickname]);
+  }, [isPlaying, nickname, reconnectTrigger]); // Pridaný reconnectTrigger
 
   // Socket pre leaderboard v hlavnom menu
   useEffect(() => {
@@ -379,8 +381,8 @@ export default function Game() {
     ctx.save();
 
     // Dúhové kruhy - každý level pridá novú farebnú líniu
-    const ringThickness = 3; // hrúbka každého kruhu
-    const ringSpacing = 2; // medzera medzi kruhmi
+    const ringThickness = GAME_SETTINGS.RING_THICKNESS; // hrúbka každého kruhu
+    const ringSpacing = GAME_SETTINGS.RING_SPACING; // medzera medzi kruhmi
     
     // Vykresli kruhy od vonkajšieho k vnútornému
     for (let level = player.level; level >= 1; level--) {
@@ -460,24 +462,85 @@ export default function Game() {
   };
 
   const drawUI = (ctx: CanvasRenderingContext2D, player: PlayerBubble) => {
+    if (!gameState) return;
+    
+    // Získaj top 5 hráčov
+    const topPlayers = Object.values(gameState.players)
+      .sort((a, b) => b.level - a.level || b.score - a.score)
+      .slice(0, 5);
+    
+    // Výška panelu závisí od počtu hráčov
+    const baseHeight = 130; // pre player stats + turbo
+    const leaderboardHeight = topPlayers.length * 20 + 25; // 20px na hráča + header
+    const totalHeight = baseHeight + leaderboardHeight;
+    
     // Score board v ľavom hornom rohu
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(10, 10, 170, 110);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(10, 10, 220, totalHeight);
     
+    // Player stats
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '18px Arial';
+    ctx.font = '16px Arial';
     ctx.textAlign = 'left';
     ctx.fillText(`Level: ${player.level}`, 20, 32);
-    ctx.fillText(`Score: ${player.score}`, 20, 52);
-    ctx.fillText(`Speed: ${Math.round(player.baseSpeed)}`, 20, 72);
-    ctx.fillText(`FPS: ${currentFpsRef.current}`, 20, 92);
+    ctx.fillText(`Score: ${player.score}`, 20, 50);
+    ctx.fillText(`Speed: ${Math.round(player.baseSpeed)}`, 20, 68);
+    ctx.fillText(`FPS: ${currentFpsRef.current}`, 20, 86);
     
     // Turbo indikátor
     if (turboActive) {
       ctx.fillStyle = '#FF6B6B';
-      ctx.fillText(`🚀 TURBO ACTIVE`, 20, 112);
+      ctx.font = '14px Arial';
+      ctx.fillText(`🚀 TURBO ACTIVE`, 20, 105);
     }
+    
+    // Separator line
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, 115);
+    ctx.lineTo(210, 115);
+    ctx.stroke();
+    
+    // Live Leaderboard header
+    ctx.fillStyle = '#FFD700'; // zlatá farba pre header
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText('🏆 LIVE TOP 5', 20, 135);
+    
+    // Live Leaderboard entries
+    ctx.font = '12px Arial';
+    topPlayers.forEach((p, index) => {
+      const y = 155 + index * 20;
+      
+      // Pozícia
+      ctx.fillStyle = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#FFFFFF';
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+      ctx.fillText(medal, 20, y);
+      
+      // Nickname (skráť ak je dlhý)
+      let nickname = p.nickname;
+      if (nickname.length > 8) {
+        nickname = nickname.substring(0, 7) + '...';
+      }
+      
+      // Zvýrazni seba
+      if (p.id === player.id) {
+        ctx.fillStyle = '#00FF00'; // zelená pre seba
+        ctx.font = 'bold 12px Arial';
+      } else {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px Arial';
+      }
+      
+      ctx.fillText(nickname, 45, y);
+      
+      // Level a Score
+      ctx.fillStyle = index < 3 ? (index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : '#CD7F32') : '#CCCCCC';
+      ctx.font = '11px Arial';
+      ctx.fillText(`L${p.level}`, 120, y);
+      ctx.fillText(`${p.score}`, 150, y);
+    });
     
     ctx.restore();
   };
@@ -554,14 +617,14 @@ export default function Game() {
                   <span className="text-2xl flex-shrink-0">📈</span>
                   <div>
                     <h3 className="font-semibold text-lg">Level up</h3>
-                    <p>Dosiahni 500 bodov pre ďalší level (+50 rýchlosť za level)</p>
+                    <p>Dosiahni {GAME_SETTINGS.LEVEL_UP_BASE} bodov pre level 2, ďalšie levely +{GAME_SETTINGS.LEVEL_UP_INCREMENT} bodov (každý level +{GAME_SETTINGS.SPEED_LEVEL_INCREASE} rýchlosť)</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <span className="text-2xl flex-shrink-0">⚠️</span>
                   <div>
                     <h3 className="font-semibold text-lg">Pozor</h3>
-                    <p>Turbo zrýchľuje 2x, ale spotrebúva body a zmenšuje ťa (33 bublín/s), minimum 5 bodov</p>
+                    <p>Turbo zrýchľuje {GAME_SETTINGS.TURBO_SPEED_MULTIPLIER}x, ale spotrebúva {GAME_SETTINGS.TURBO_DRAIN_RATE} bodov/s, minimum {GAME_SETTINGS.MIN_TURBO_SCORE} bodov. <strong>Väčší hráč = pomalší!</strong></p>
                   </div>
                 </div>
               </div>
@@ -725,7 +788,7 @@ export default function Game() {
         }}
       />
       
-      {isMobile && isPlaying && (
+      {isMobile && isPlaying && !isDead && (
         <>
           <Joystick onMove={handleJoystickMove} />
           <TurboButton 
@@ -742,25 +805,50 @@ export default function Game() {
       )}
       
       {isDead && playerId && !gameState?.players[playerId] && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-75 text-white p-8 rounded-lg text-center">
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-75 text-white p-8 rounded-lg text-center" style={{ zIndex: 3000 }}>
           <h2 className="text-2xl mb-4">Koniec hry!</h2>
-          <p className="mb-4">Boli ste zjedený</p>
-          <button
-            className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
-            onClick={() => {
-              setIsDead(false);
-              // Zachovaj nickname a nicknameInput pre opakovanie hry
-              setIsPlaying(true);
-              setGameState(null);
-              setPlayerId(null);
-              if (socketRef.current) {
-                socketRef.current.disconnect();
-                socketRef.current = null;
-              }
-            }}
-          >
-            Hrať znova
-          </button>
+          <p className="mb-6">Boli ste zjedený</p>
+          <div className="flex gap-4 justify-center">
+            <button
+              className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
+              onClick={() => {
+                setIsDead(false);
+                setIsConnected(false); // RESETUJ connection status
+                // ZOSTAŇ V HRE - necháme isPlaying: true a zachováme nickname
+                // setIsPlaying(true); // už je true, netreba meniť
+                setGameState(null);
+                setPlayerId(null);
+                if (socketRef.current) {
+                  socketRef.current.disconnect();
+                  socketRef.current = null;
+                }
+                // Trigger pre nové pripojenie
+                setReconnectTrigger(prev => prev + 1);
+                // Nickname a nicknameInput ostávajú zachované pre okamžité pripojenie
+              }}
+            >
+              🎮 Hrať znova
+            </button>
+            <button
+              className="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700 transition-colors"
+              onClick={() => {
+                setIsDead(false);
+                setIsConnected(false);
+                setIsPlaying(false); // Vráť sa na domovskú stránku
+                setGameState(null);
+                setPlayerId(null);
+                if (socketRef.current) {
+                  socketRef.current.disconnect();
+                  socketRef.current = null;
+                }
+                // Zachovaj nickname pre prípad že ho chce použiť znova
+                // setNickname(''); // nemazať nickname
+                // setNicknameInput(''); // nemazať nicknameInput
+              }}
+            >
+              🏠 Ukončiť hru
+            </button>
+          </div>
         </div>
       )}
     </div>
