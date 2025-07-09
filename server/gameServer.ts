@@ -53,14 +53,28 @@ export class GameServer {
     
     this.io = new Server(this.httpServer, {
       cors: {
-        origin: [
-          'https://bubbles-nrl5.vercel.app',
-          'http://localhost:3000', 
-          'http://localhost:3001', 
-          'http://localhost:3002'
-        ],
+        origin: (origin, callback) => {
+          const allowedOrigins = [
+            'https://bubbles-nrl5.vercel.app',
+            'http://localhost:3000', 
+            'http://localhost:3001', 
+            'http://localhost:3002'
+          ];
+          
+          console.log(`🌐 CORS request from origin: ${origin}`);
+          
+          // Povol undefined origin (same-origin requests)
+          if (!origin || allowedOrigins.includes(origin)) {
+            console.log(`✅ CORS povolený pre: ${origin || 'same-origin'}`);
+            callback(null, true);
+          } else {
+            console.log(`❌ CORS zamietnutý pre: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
         methods: ['GET', 'POST'],
-        credentials: true
+        credentials: true,
+        allowedHeaders: ['Content-Type']
       }
     });
 

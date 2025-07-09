@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sk">
-      <body className="overflow-hidden">
+      <body>
         {children}
       </body>
     </html>

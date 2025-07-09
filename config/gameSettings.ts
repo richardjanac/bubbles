@@ -15,7 +15,7 @@ export const GAME_SETTINGS = {
   STARTING_LEVEL: 1,                  // Počiatočný level
   BASE_SPEED: 250,                    // Základná rýchlosť v pixeloch/sekundu
   SPEED_SIZE_PENALTY: 0.2,              // O koľko sa spomalí za každý bod skóre (NEW!)
-  SPEED_LEVEL_INCREASE: 50,           // O koľko sa zrýchli za každý level
+  SPEED_LEVEL_INCREASE: 30,           // O koľko sa zrýchli za každý level
   
   // 💨 TURBO MECHANIZMUS
   TURBO_SPEED_MULTIPLIER: 3,        // Násobič rýchlosti pri turbo (2x = dvojnásobná rýchlosť)

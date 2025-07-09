@@ -8,13 +8,23 @@
   padding: 0;
 }
 
-html, body, #__next {
+html {
   width: 100vw;
-  height: 100vh;
+  /* Allow scrolling on homepage */
+  overflow-x: hidden;
+}
+
+body {
+  width: 100vw;
   min-height: 100vh;
   /* Mobile viewport fix */
   min-height: 100dvh; /* Dynamic viewport height */
-  height: 100dvh;
+}
+
+#__next {
+  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body {
@@ -25,12 +35,16 @@ body {
   overscroll-behavior: none;
   /* Prevent zoom on iOS */
   -webkit-text-size-adjust: 100%;
-  /* Hide address bar on mobile */
+}
+
+/* Only fix body for game mode - will be controlled by JS */
+body.game-mode {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  overflow: hidden;
 }
 
 /* Mobile viewport meta fixes */

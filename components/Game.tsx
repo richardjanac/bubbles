@@ -56,6 +56,22 @@ export default function Game() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Správa overflow na body podľa stavu hry
+  useEffect(() => {
+    if (isPlaying) {
+      // V hre - pridaj game-mode triedu
+      document.body.classList.add('game-mode');
+    } else {
+      // Na domovskej stránke - odstráň game-mode triedu
+      document.body.classList.remove('game-mode');
+    }
+    
+    // Cleanup pri unmount
+    return () => {
+      document.body.classList.remove('game-mode');
+    };
+  }, [isPlaying]);
+
   // Socket.IO pripojenie
   useEffect(() => {
     if (!isPlaying || !nickname) return;
@@ -318,7 +334,7 @@ export default function Game() {
     ctx: CanvasRenderingContext2D, 
     position: Vector2, 
     radius: number, 
-    color: string = '#FFFFFF',
+    color: string = '#FFFFFF', // Biele NPC bubliny
     camera: Vector2,
     zoom: number
   ) => {
@@ -333,7 +349,7 @@ export default function Game() {
 
     ctx.save();
     
-    // Priehľadná výplň
+    // Priehľadná biela výplň pre NPC bubliny
     ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.beginPath();
     ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
@@ -344,7 +360,7 @@ export default function Game() {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Odlesk
+    // Biely odlesk
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.beginPath();
     ctx.arc(screenX - radius * 0.3, screenY - radius * 0.3, radius * 0.3, 0, Math.PI * 2);
@@ -399,15 +415,15 @@ export default function Game() {
       }
     }
 
-    // Priehľadná vnútorná výplň
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    // Tmavšia modrá vnútorná výplň pre hráčov
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.15)'; // Tmavšia modrá s priehľadnosťou
     ctx.beginPath();
     const innerRadius = Math.max(5, player.radius! - player.level * (ringThickness + ringSpacing));
     ctx.arc(screenX, screenY, innerRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Odlesk
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    // Svetlejší modrý odlesk pre hráčov
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.4)'; // Svetlejšia modrá pre odlesk
     ctx.beginPath();
     ctx.arc(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, player.radius! * 0.2, 0, Math.PI * 2);
     ctx.fill();
@@ -547,8 +563,8 @@ export default function Game() {
 
   if (!isPlaying) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#E8F4F8] to-[#D0E8F2] flex items-center justify-center p-6">
-        <div className="max-w-5xl w-full mx-12 lg:mx-auto">
+      <div className="min-h-screen bg-gradient-to-b from-[#E8F4F8] to-[#D0E8F2] py-6 px-6 overflow-y-auto">
+        <div className="max-w-5xl w-full mx-auto">
           {/* Hlavný panel */}
           <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 mb-8 text-center">
             <h1 className="text-6xl font-bold mb-4 text-gray-800">
