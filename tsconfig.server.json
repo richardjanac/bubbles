@@ -7,8 +7,10 @@
     "rootDir": "./",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "noEmit": false,
+    "emitDeclarationOnly": false
   },
-  "include": ["server/**/*", "types/**/*"],
+  "include": ["server/**/*", "types/**/*", "config/**/*"],
   "exclude": ["node_modules"]
 } 

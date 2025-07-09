@@ -45,6 +45,8 @@ class GameServer {
         this.lastUpdateTime = Date.now();
         this.updateInterval = null;
         this.monthlyLeaderboard = [];
+        this.isGameActive = false; // Nový flag pre aktívnosť hry
+        this.realPlayers = new Set(); // Track skutočných hráčov
         this.httpServer = (0, http_1.createServer)((req, res) => {
             // Jednoduchý health check endpoint
             if (req.url === '/health') {
@@ -57,14 +59,27 @@ class GameServer {
         });
         this.io = new socket_io_1.Server(this.httpServer, {
             cors: {
-                origin: [
-                    'https://bubbles-nrl5.vercel.app',
-                    'http://localhost:3000',
-                    'http://localhost:3001',
-                    'http://localhost:3002'
-                ],
+                origin: (origin, callback) => {
+                    const allowedOrigins = [
+                        'https://bubbles-nrl5.vercel.app',
+                        'http://localhost:3000',
+                        'http://localhost:3001',
+                        'http://localhost:3002'
+                    ];
+                    console.log(`🌐 CORS request from origin: ${origin}`);
+                    // Povol undefined origin (same-origin requests)
+                    if (!origin || allowedOrigins.includes(origin)) {
+                        console.log(`✅ CORS povolený pre: ${origin || 'same-origin'}`);
+                        callback(null, true);
+                    }
+                    else {
+                        console.log(`❌ CORS zamietnutý pre: ${origin}`);
+                        callback(new Error('Not allowed by CORS'));
+                    }
+                },
                 methods: ['GET', 'POST'],
-                credentials: true
+                credentials: true,
+                allowedHeaders: ['Content-Type']
             }
         });
         // Inicializuj mesačný leaderboard
@@ -73,17 +88,16 @@ class GameServer {
         this.gameState = {
             players: {},
             npcBubbles: {},
-            worldSize: { width: 2000, height: 2000 }
+            worldSize: { width: game_1.GAME_SETTINGS.WORLD_SIZE.WIDTH, height: game_1.GAME_SETTINGS.WORLD_SIZE.HEIGHT }
         };
         this.setupSocketHandlers();
-        this.startGameLoop();
+        // NEŠTARTUJ herný loop automaticky - spustí sa len keď sa pripojí skutočný hráč
         this.httpServer.listen(port, '0.0.0.0', () => {
             console.log(`Game server beží na porte ${port}`);
             console.log(`CORS povolený pre domains`);
             console.log(`Environment: NODE_ENV=${process.env.NODE_ENV}`);
             console.log(`Health check dostupný na: http://localhost:${port}/health`);
-            // Generuj NPC bubliny hneď po štarte
-            this.generateNPCBubbles();
+            console.log(`Server v režime čakania - hra sa spustí pri prvom pripojení skutočného hráča`);
         });
     }
     setupSocketHandlers() {
@@ -92,14 +106,18 @@ class GameServer {
             socket.on('join', (nickname) => {
                 const player = this.createPlayer(socket.id, nickname);
                 this.gameState.players[socket.id] = player;
-                // Ak je to prvý hráč, pridaj botov
-                if (Object.keys(this.gameState.players).length === 1) {
-                    this.ensureMinimumPlayers();
+                // Pridaj do zoznamu skutočných hráčov
+                this.realPlayers.add(socket.id);
+                console.log(`👤 Pripojil sa skutočný hráč: ${nickname} (${socket.id})`);
+                console.log(`📊 Aktuálne: ${this.realPlayers.size} skutočných hráčov, ${Object.keys(this.gameState.players).length} celkom`);
+                // Ak je to prvý skutočný hráč, aktivuj hru
+                if (this.realPlayers.size === 1 && !this.isGameActive) {
+                    this.activateGame();
                 }
+                // Zabezpeč minimálne hráčov
+                this.ensureMinimumPlayers();
                 socket.emit('gameState', this.serializeGameState());
                 this.io.emit('playerJoined', player);
-                console.log('Poslal som gameState, počet hráčov:', Object.keys(this.gameState.players).length);
-                console.log('Počet NPC bublín:', Object.keys(this.gameState.npcBubbles).length);
             });
             socket.on('updateInput', (input) => {
                 const player = this.gameState.players[socket.id];
@@ -114,10 +132,23 @@ class GameServer {
                 socket.emit('leaderboardStats', this.getMonthlyLeaderboardStats());
             });
             socket.on('disconnect', () => {
+                const wasRealPlayer = this.realPlayers.has(socket.id);
+                const player = this.gameState.players[socket.id];
+                if (wasRealPlayer) {
+                    this.realPlayers.delete(socket.id);
+                    console.log(`👋 Odpojil sa skutočný hráč: ${player?.nickname || 'Neznámy'} (${socket.id})`);
+                    console.log(`📊 Zostáva: ${this.realPlayers.size} skutočných hráčov`);
+                    // Ak sa odpojil posledný skutočný hráč, deaktivuj hru
+                    if (this.realPlayers.size === 0 && this.isGameActive) {
+                        this.deactivateGame();
+                    }
+                }
                 delete this.gameState.players[socket.id];
                 this.io.emit('playerLeft', socket.id);
-                console.log('Hráč sa odpojil:', socket.id);
-                // Nepridávame botov pri disconnect - len pri kolízii
+                // Zabezpeč minimálny počet hráčov len ak hra beží
+                if (this.isGameActive) {
+                    this.ensureMinimumPlayers();
+                }
             });
         });
     }
@@ -125,8 +156,9 @@ class GameServer {
         const position = this.getRandomPosition();
         const currentTime = Date.now();
         const startingLevel = game_1.GAME_CONSTANTS.STARTING_LEVEL;
-        // Vypočítaj počiatočnú rýchlosť na základe aditivneho systému
-        const baseSpeed = game_1.GAME_CONSTANTS.BASE_SPEED + (startingLevel - 1) * game_1.GAME_CONSTANTS.SPEED_LEVEL_INCREASE;
+        const startingScore = game_1.GAME_CONSTANTS.STARTING_SCORE;
+        // Vypočítaj počiatočnú rýchlosť pomocou novej funkcie
+        const baseSpeed = (0, game_1.calculatePlayerSpeed)(startingLevel, startingScore);
         // Slovenské mená pre botov
         const slovakNames = [
             'Marek', 'Peter', 'Jozef', 'Ján', 'Michal', 'František', 'Martin', 'Tomáš',
@@ -138,13 +170,13 @@ class GameServer {
         return {
             id,
             nickname: botName,
-            score: game_1.GAME_CONSTANTS.STARTING_SCORE,
+            score: startingScore,
             level: startingLevel,
             baseSpeed: baseSpeed,
             position,
             velocity: { x: 0, y: 0 },
             color: (0, game_1.getLevelColor)(startingLevel),
-            radius: (0, game_1.calculateRadius)(game_1.GAME_CONSTANTS.STARTING_SCORE),
+            radius: (0, game_1.calculateRadius)(startingScore),
             isBot,
             spawnTime: currentTime,
             isInvulnerable: true
@@ -154,17 +186,55 @@ class GameServer {
         const botId = `bot_${Date.now()}_${Math.random()}`;
         return this.createPlayer(botId, '', true);
     }
+    activateGame() {
+        if (this.isGameActive)
+            return;
+        this.isGameActive = true;
+        console.log('🎮 Aktivujem hru - prvý skutočný hráč sa pripojil!');
+        // Generuj NPC bubliny
+        this.generateNPCBubbles();
+        // Spusti herný loop
+        this.startGameLoop();
+        // Zabezpeč minimálny počet hráčov
+        this.ensureMinimumPlayers();
+    }
+    deactivateGame() {
+        if (!this.isGameActive)
+            return;
+        this.isGameActive = false;
+        console.log('🛑 Posledný skutočný hráč sa odpojil - deaktivujem hru');
+        // Zastav herný loop
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+        // Vyčisti všetkých botov
+        const botIds = Object.keys(this.gameState.players).filter(id => this.gameState.players[id].isBot);
+        botIds.forEach(botId => {
+            delete this.gameState.players[botId];
+        });
+        // Vyčisti NPC bubliny
+        this.gameState.npcBubbles = {};
+        console.log(`🤖 Vyčistených ${botIds.length} neaktívnych botov - žiadni skutoční hráči`);
+    }
     ensureMinimumPlayers() {
+        // Zabezpeč minimálny počet hráčov len ak hra beží
+        if (!this.isGameActive)
+            return;
         const currentPlayers = Object.keys(this.gameState.players).length;
         const botsNeeded = Math.max(0, game_1.GAME_CONSTANTS.MIN_PLAYERS - currentPlayers);
+        if (botsNeeded > 0) {
+            console.log(`Pridávam ${botsNeeded} botov (aktuálne: ${currentPlayers}, potrebných: ${game_1.GAME_CONSTANTS.MIN_PLAYERS})`);
+        }
         for (let i = 0; i < botsNeeded; i++) {
             const bot = this.createBot();
             this.gameState.players[bot.id] = bot;
+            console.log(`Pridaný bot: ${bot.nickname} (${bot.id})`);
         }
     }
     generateNPCBubbles() {
         // Generuj NPC bubliny ak je ich málo
-        const targetNPCs = Math.floor(this.gameState.worldSize.width * this.gameState.worldSize.height / 10000);
+        const targetNPCs = Math.floor(this.gameState.worldSize.width * this.gameState.worldSize.height / game_1.GAME_SETTINGS.NPC_DENSITY);
         const currentNPCs = Object.keys(this.gameState.npcBubbles).length;
         // Odstránený debug výpis
         for (let i = currentNPCs; i < targetNPCs; i++) {
@@ -534,6 +604,8 @@ class GameServer {
                     // Hráč zje NPC bublinu
                     player.score += npc.score;
                     player.radius = (0, game_1.calculateRadius)(player.score);
+                    // Aktualizuj rýchlosť na základe novej veľkosti
+                    player.baseSpeed = (0, game_1.calculatePlayerSpeed)(player.level, player.score);
                     delete this.gameState.npcBubbles[npcId];
                     // Skontroluj level up
                     this.checkLevelUp(player);
@@ -555,15 +627,10 @@ class GameServer {
         // Odstráň porazeného hráča
         delete this.gameState.players[loser.id];
         this.io.emit('bubblePopped', loser.id);
-        // Ak to bol bot, pridaj nového len ak je menej ako minimum hráčov
-        if (loser.isBot) {
-            const humanPlayers = Object.values(this.gameState.players).filter(p => !p.isBot).length;
-            const totalPlayers = Object.keys(this.gameState.players).length;
-            // Pridaj nového bota len ak je menej ako minimum
-            if (totalPlayers < game_1.GAME_CONSTANTS.MIN_PLAYERS && humanPlayers > 0) {
-                const newBot = this.createBot();
-                this.gameState.players[newBot.id] = newBot;
-            }
+        // Zabezpeč minimálny počet hráčov po kolízii
+        const currentTotalPlayers = Object.keys(this.gameState.players).length;
+        if (currentTotalPlayers < game_1.GAME_CONSTANTS.MIN_PLAYERS) {
+            this.ensureMinimumPlayers();
         }
     }
     createNpcBubblesFromPlayer(position, score) {
@@ -597,8 +664,8 @@ class GameServer {
             // Level up!
             player.level++;
             player.score = game_1.GAME_CONSTANTS.STARTING_SCORE;
-            // Aditivne zvýšenie rýchlosti - každý level pridá 50 bodov
-            player.baseSpeed = game_1.GAME_CONSTANTS.BASE_SPEED + (player.level - 1) * game_1.GAME_CONSTANTS.SPEED_LEVEL_INCREASE;
+            // Aktualizuj rýchlosť na základe nového levelu a skóre
+            player.baseSpeed = (0, game_1.calculatePlayerSpeed)(player.level, player.score);
             player.color = (0, game_1.getLevelColor)(player.level);
             player.radius = (0, game_1.calculateRadius)(player.score);
             // Pridaj level up protection na 3 sekundy
@@ -625,8 +692,9 @@ class GameServer {
                     // Zníž skóre hráča
                     player.score = Math.max(game_1.GAME_CONSTANTS.MIN_TURBO_SCORE, player.score - 1);
                 }
-                // Aktualizuj polomer hráča
+                // Aktualizuj polomer a rýchlosť hráča
                 player.radius = (0, game_1.calculateRadius)(player.score);
+                player.baseSpeed = (0, game_1.calculatePlayerSpeed)(player.level, player.score);
             }
         }
     }
@@ -665,7 +733,16 @@ class GameServer {
         };
     }
     startGameLoop() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        console.log('🎮 Spúšťam game loop...');
         this.updateInterval = setInterval(() => {
+            // Kontroluj či hra stále beží
+            if (!this.isGameActive) {
+                console.log('💤 Hra neaktívna: žiadni skutoční hráči pripojení');
+                return;
+            }
             const currentTime = Date.now();
             const deltaTime = (currentTime - this.lastUpdateTime) / 1000; // v sekundách
             this.lastUpdateTime = currentTime;
@@ -678,7 +755,7 @@ class GameServer {
                     }
                 }
             });
-            // Aktualizuj AI botov
+            // Aktualizuj AI botov len ak hra beží
             Object.values(this.gameState.players).forEach(player => {
                 if (player.isBot) {
                     this.updateBotAI(player, deltaTime);
@@ -693,9 +770,19 @@ class GameServer {
             this.checkCollisions();
             // Generuj NPC bubliny
             this.generateNPCBubbles();
+            // Zabezpeč minimálny počet hráčov (každých 5 sekúnd)
+            if (Math.floor(currentTime / 5000) !== Math.floor((currentTime - deltaTime * 1000) / 5000)) {
+                this.ensureMinimumPlayers();
+                if (this.realPlayers.size > 0) {
+                    const currentPlayers = Object.keys(this.gameState.players).length;
+                    const realPlayerCount = this.realPlayers.size;
+                    const botCount = currentPlayers - realPlayerCount;
+                    console.log(`🎮 Hra aktívna: ${realPlayerCount} skutočných hráčov, ${botCount} botov`);
+                }
+            }
             // Pošli aktualizovaný stav všetkým klientom
             this.io.emit('gameState', this.serializeGameState());
-        }, 1000 / 60); // 60 FPS
+        }, 1000 / 20); // 20 FPS pre úsporu zdrojov
     }
     stop() {
         if (this.updateInterval) {
