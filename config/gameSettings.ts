@@ -38,11 +38,11 @@ export const GAME_SETTINGS = {
   SPAWN_PROTECTION_DURATION: 3000,    // Ochrana po spawn/levelup v milisekundách
   
   // 🤖 BOT AI NASTAVENIA
-  BOT_AI_UPDATE_INTERVAL: 300,        // Optimalizované: 300ms (boli 200ms) - menej CPU
+  BOT_AI_UPDATE_INTERVAL: 500,        // Znížené z 300 na 500ms - menej agresívne AI updates
   BOT_CLEANUP_INTERVAL: 30000,        // Ako často sa čistia neaktívni boti (ms)
   
   // ⚡ VÝKONNOSŤ
-  GAME_LOOP_FPS: 25,                  // Optimalizované: 25 FPS (bolo 20) - dobrý kompromis
+  GAME_LOOP_FPS: 30,                  // Zvýšené z 25 na 30 FPS pre plynulejšiu hru
   INPUT_UPDATE_FPS: 30,               // Optimalizované: 30 FPS (bolo 60) - stále responsívne
   
   // 🎨 VIZUÁLNE

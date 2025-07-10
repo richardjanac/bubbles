@@ -966,7 +966,7 @@ export class GameServer {
 
       // Pošli aktualizovaný stav všetkým klientom
       this.io.emit('gameState', this.serializeGameState());
-    }, 1000 / 20); // 20 FPS pre úsporu zdrojov
+    }, 1000 / GAME_SETTINGS.GAME_LOOP_FPS); // Používa konfiguračné nastavenie
   }
 
   public stop() {
