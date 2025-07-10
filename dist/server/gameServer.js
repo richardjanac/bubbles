@@ -309,53 +309,72 @@ class GameServer {
         }
     }
     updateBotAI(bot, deltaTime) {
-        // Pokročilá AI s realistickým ľudským správaním
-        // Pridaj náhodnosť a personálne preferencie bota
+        const currentTime = Date.now();
+        // Inicializuj AI personality len raz
         if (!bot.aiPersonality) {
             bot.aiPersonality = {
                 aggressiveness: 0.3 + Math.random() * 0.4, // 0.3-0.7
                 cautiousness: 0.2 + Math.random() * 0.6, // 0.2-0.8
-                patrolRadius: 200 + Math.random() * 300, // 200-500px
-                lastDirectionChange: Date.now(),
+                lastDecisionTime: currentTime,
+                decisionInterval: 800 + Math.random() * 600, // 800-1400ms medzi rozhodnutiami
                 currentTarget: null,
-                isPatrolling: false,
-                patrolCenter: { ...bot.position },
+                targetPosition: { ...bot.position },
+                isMovingToTarget: false,
                 panicMode: false,
-                lastTurboUse: 0
+                lastTurboUse: 0,
+                momentum: { x: 0, y: 0 }, // Pre plynulejšie pohyby
+                targetVelocity: { x: 0, y: 0 } // Cieľová rýchlosť
             };
         }
         const personality = bot.aiPersonality;
-        const currentTime = Date.now();
-        // Analyzuj okolie
-        const analysis = this.analyzeEnvironment(bot);
-        // Rozhodovací systém založený na situácii
-        let decision = this.makeBotDecision(bot, analysis, personality);
-        // Panic mode: ak sú blízko veľkí hráči
-        if (analysis.dangerousEnemies.length > 0) {
-            const closestDanger = analysis.dangerousEnemies[0];
-            if (closestDanger.distance < bot.radius * 3) {
-                personality.panicMode = true;
-                decision = this.createEscapeDecision(bot, closestDanger.target);
-            }
-        }
-        else {
-            personality.panicMode = false;
-        }
-        // Ľudské správanie: občasné zmeny smeru
-        if (currentTime - personality.lastDirectionChange > 2000 + Math.random() * 3000) {
-            personality.lastDirectionChange = currentTime;
-            // Občas zmeň stratégiu
-            if (Math.random() < 0.3) {
-                personality.isPatrolling = !personality.isPatrolling;
-                if (personality.isPatrolling) {
-                    personality.patrolCenter = { ...bot.position };
+        // Aktualizuj AI rozhodnutie iba periodicky (nie každý frame!)
+        if (currentTime - personality.lastDecisionTime > personality.decisionInterval) {
+            personality.lastDecisionTime = currentTime;
+            personality.decisionInterval = 600 + Math.random() * 800; // Variabilný interval
+            // Analyzuj okolie iba pri novom rozhodnutí
+            const analysis = this.analyzeEnvironment(bot);
+            const decision = this.makeBotDecision(bot, analysis, personality);
+            if (decision) {
+                personality.targetPosition = decision.position;
+                personality.isMovingToTarget = true;
+                // Vypočítaj cieľovú rýchlosť
+                const dx = decision.position.x - bot.position.x;
+                const dy = decision.position.y - bot.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > 0) {
+                    const dirX = dx / distance;
+                    const dirY = dy / distance;
+                    const speed = bot.baseSpeed * (decision.turbo ? game_1.GAME_CONSTANTS.TURBO_SPEED_MULTIPLIER : 1.0);
+                    personality.targetVelocity = {
+                        x: dirX * speed,
+                        y: dirY * speed
+                    };
                 }
             }
         }
-        // Aplikuj rozhodnutie
-        if (decision) {
-            this.updatePlayerInput(bot, decision);
+        // Smooth movement - interpolácia k cieľovej rýchlosti
+        if (personality.isMovingToTarget) {
+            const lerpFactor = Math.min(1.0, deltaTime * 3.0); // Plynulé prechody
+            bot.velocity.x = this.lerp(bot.velocity.x, personality.targetVelocity.x, lerpFactor);
+            bot.velocity.y = this.lerp(bot.velocity.y, personality.targetVelocity.y, lerpFactor);
+            // Skontroluj či už dosiahol cieľ
+            const distanceToTarget = this.getDistance(bot.position, personality.targetPosition);
+            if (distanceToTarget < 50) {
+                personality.isMovingToTarget = false;
+                // Spomalenie pri dosiahnutí cieľa
+                personality.targetVelocity = { x: 0, y: 0 };
+            }
         }
+        else {
+            // Postupné spomalenie ak nemá cieľ
+            const dampingFactor = Math.pow(0.1, deltaTime); // Exponenciálne spomalenie
+            bot.velocity.x *= dampingFactor;
+            bot.velocity.y *= dampingFactor;
+        }
+    }
+    // Pomocná funkcia pre lineárnu interpoláciu
+    lerp(a, b, t) {
+        return a + (b - a) * t;
     }
     analyzeEnvironment(bot) {
         const analysis = {
@@ -411,53 +430,68 @@ class GameServer {
     }
     makeBotDecision(bot, analysis, personality) {
         const currentTime = Date.now();
-        // Panic mode - utekaj!
-        if (personality.panicMode) {
-            return this.createEscapeDecision(bot, analysis.dangerousEnemies[0]?.target);
-        }
-        // Agresívni boti: útočia na slabších hráčov
-        if (analysis.weakEnemies.length > 0 && Math.random() < personality.aggressiveness) {
-            const target = analysis.weakEnemies[0];
-            const shouldUseTurbo = target.distance > 200 &&
-                bot.score > game_1.GAME_CONSTANTS.MIN_TURBO_SCORE * 3 &&
-                currentTime - personality.lastTurboUse > 5000;
-            if (shouldUseTurbo) {
-                personality.lastTurboUse = currentTime;
+        // PRIORITA 1: Panic mode - utekaj od nebezpečenstva!
+        if (analysis.dangerousEnemies.length > 0) {
+            const closestDanger = analysis.dangerousEnemies[0];
+            if (closestDanger.distance < bot.radius * 4) {
+                personality.panicMode = true;
+                return this.createSmoothEscapeDecision(bot, closestDanger.target);
             }
-            return {
-                position: this.predictMovement(target.target),
-                turbo: shouldUseTurbo
-            };
         }
-        // Opatrní boti: zbierajú jedlo v bezpečí
-        if (analysis.nearbyFood.length > 0 && Math.random() < personality.cautiousness) {
-            const safestFood = this.findSafestFood(bot, analysis);
-            if (safestFood) {
+        personality.panicMode = false;
+        // PRIORITA 2: Agresívni boti útočia na slabších hráčov (ale opatrne)
+        if (analysis.weakEnemies.length > 0 && Math.random() < personality.aggressiveness * 0.7) {
+            const target = analysis.weakEnemies[0];
+            // Iba ak je cieľ dostatočne blízko a bezpečný
+            if (target.distance < 300 && target.scoreDiff > 30) {
+                const shouldUseTurbo = target.distance > 150 &&
+                    bot.score > game_1.GAME_CONSTANTS.MIN_TURBO_SCORE * 2 &&
+                    currentTime - personality.lastTurboUse > 8000;
+                if (shouldUseTurbo) {
+                    personality.lastTurboUse = currentTime;
+                }
                 return {
-                    position: safestFood.position,
+                    position: this.predictSmoothMovement(target.target),
+                    turbo: shouldUseTurbo
+                };
+            }
+        }
+        // PRIORITA 3: Zbieraj jedlo (hlavná aktivita)
+        if (analysis.nearbyFood.length > 0) {
+            let bestFood = null;
+            let bestScore = -1;
+            // Nájdi najlepšie jedlo (blízko + bezpečné)
+            for (const food of analysis.nearbyFood.slice(0, 3)) {
+                let safetyScore = food.value; // základné skóre vzdialenosť/hodnota
+                // Bonus za bezpečnosť
+                let minDangerDistance = Infinity;
+                for (const danger of analysis.dangerousEnemies) {
+                    const dangerToFood = this.getDistance(food.target.position, danger.target.position);
+                    minDangerDistance = Math.min(minDangerDistance, dangerToFood);
+                }
+                if (minDangerDistance > 100) { // Bezpečný bonus
+                    safetyScore *= 1.5;
+                }
+                if (safetyScore > bestScore) {
+                    bestScore = safetyScore;
+                    bestFood = food.target;
+                }
+            }
+            if (bestFood) {
+                return {
+                    position: bestFood.position,
                     turbo: false
                 };
             }
         }
-        // Patrol mode: pohybuj sa v okolí
-        if (personality.isPatrolling) {
-            return this.createPatrolDecision(bot, personality);
-        }
-        // Základné jedlo zbieranie
-        if (analysis.nearbyFood.length > 0) {
-            return {
-                position: analysis.nearbyFood[0].target.position,
-                turbo: false
-            };
-        }
-        // Náhodné preskúmanie
-        return this.createExploreDecision(bot);
+        // PRIORITA 4: Náhodné preskúmanie (plynulé)
+        return this.createSmoothExploreDecision(bot, personality);
     }
-    createEscapeDecision(bot, danger) {
+    createSmoothEscapeDecision(bot, danger) {
         if (!danger) {
-            return this.createExploreDecision(bot);
+            return this.createSmoothExploreDecision(bot, null);
         }
-        // Utekaj v opačnom smere
+        // Utekaj v opačnom smere, ale inteligentne
         const escapeVector = {
             x: bot.position.x - danger.position.x,
             y: bot.position.y - danger.position.y
@@ -473,46 +507,38 @@ class GameServer {
             escapeVector.x /= length;
             escapeVector.y /= length;
         }
-        // Utekaj ďaleko
-        const escapeDistance = 300;
+        // Mierne randomizuj smer úteku (nie priamo opačne)
+        const randomAngle = (Math.random() - 0.5) * Math.PI * 0.5; // ±45°
+        const cos = Math.cos(randomAngle);
+        const sin = Math.sin(randomAngle);
+        const newX = escapeVector.x * cos - escapeVector.y * sin;
+        const newY = escapeVector.x * sin + escapeVector.y * cos;
+        // Utekaj rozumne ďaleko
+        const escapeDistance = 180 + Math.random() * 120; // 180-300px
+        let targetX = bot.position.x + newX * escapeDistance;
+        let targetY = bot.position.y + newY * escapeDistance;
+        // Udržuj v hraniciach mapy
+        const margin = 100;
+        targetX = Math.max(margin, Math.min(this.gameState.worldSize.width - margin, targetX));
+        targetY = Math.max(margin, Math.min(this.gameState.worldSize.height - margin, targetY));
         return {
-            position: {
-                x: bot.position.x + escapeVector.x * escapeDistance,
-                y: bot.position.y + escapeVector.y * escapeDistance
-            },
-            turbo: bot.score > game_1.GAME_CONSTANTS.MIN_TURBO_SCORE * 2 // Použij turbo pri úteku
+            position: { x: targetX, y: targetY },
+            turbo: bot.score > game_1.GAME_CONSTANTS.MIN_TURBO_SCORE * 1.5
         };
     }
-    createPatrolDecision(bot, personality) {
-        const distanceFromCenter = this.getDistance(bot.position, personality.patrolCenter);
-        if (distanceFromCenter > personality.patrolRadius) {
-            // Vráť sa do patrol oblasti
-            return {
-                position: personality.patrolCenter,
-                turbo: false
-            };
-        }
-        // Pohybuj sa náhodne v patrol oblasti
-        const angle = Math.random() * Math.PI * 2;
-        const distance = Math.random() * personality.patrolRadius * 0.5;
-        return {
-            position: {
-                x: personality.patrolCenter.x + Math.cos(angle) * distance,
-                y: personality.patrolCenter.y + Math.sin(angle) * distance
-            },
-            turbo: false
-        };
-    }
-    createExploreDecision(bot) {
-        // Náhodné preskúmanie s tendenciou smerom k stredu mapy
-        const centerBias = 0.3; // 30% bias smerom k stredu
+    createSmoothExploreDecision(bot, personality) {
+        // Inteligentné preskúmanie - preferuj oblasti s jedlom
         const mapCenter = {
             x: this.gameState.worldSize.width / 2,
             y: this.gameState.worldSize.height / 2
         };
+        // Zisti ako ďaleko je od stredu
+        const distanceFromCenter = this.getDistance(bot.position, mapCenter);
+        const maxDistance = Math.sqrt(this.gameState.worldSize.width ** 2 + this.gameState.worldSize.height ** 2) / 2;
+        const centerBias = distanceFromCenter / maxDistance; // Ďalej od stredu = väčší bias k stredu
         let targetX, targetY;
-        if (Math.random() < centerBias) {
-            // Smer k stredu mapy
+        if (Math.random() < centerBias * 0.7) {
+            // Smer smerom k stredu (ale nie priamo)
             const dirToCenter = {
                 x: mapCenter.x - bot.position.x,
                 y: mapCenter.y - bot.position.y
@@ -522,25 +548,35 @@ class GameServer {
                 dirToCenter.x /= length;
                 dirToCenter.y /= length;
             }
-            const exploreDistance = 200 + Math.random() * 200;
-            targetX = bot.position.x + dirToCenter.x * exploreDistance;
-            targetY = bot.position.y + dirToCenter.y * exploreDistance;
+            // Pridaj náhodnosť k smeru
+            const randomAngle = (Math.random() - 0.5) * Math.PI; // ±90°
+            const cos = Math.cos(randomAngle);
+            const sin = Math.sin(randomAngle);
+            const randomDirX = dirToCenter.x * cos - dirToCenter.y * sin;
+            const randomDirY = dirToCenter.x * sin + dirToCenter.y * cos;
+            const exploreDistance = 120 + Math.random() * 180;
+            targetX = bot.position.x + randomDirX * exploreDistance;
+            targetY = bot.position.y + randomDirY * exploreDistance;
         }
         else {
-            // Úplne náhodný smer
+            // Náhodný smer pre pestrosť
             const angle = Math.random() * Math.PI * 2;
-            const distance = 150 + Math.random() * 250;
+            const distance = 100 + Math.random() * 200;
             targetX = bot.position.x + Math.cos(angle) * distance;
             targetY = bot.position.y + Math.sin(angle) * distance;
         }
+        // Udržuj v hraniciach mapy
+        const margin = 80;
+        targetX = Math.max(margin, Math.min(this.gameState.worldSize.width - margin, targetX));
+        targetY = Math.max(margin, Math.min(this.gameState.worldSize.height - margin, targetY));
         return {
             position: { x: targetX, y: targetY },
             turbo: false
         };
     }
-    predictMovement(target) {
-        // Predikcia kde bude cieľ - ako ľudia anticipujú pohyb
-        const prediction = 0.5; // 0.5 sekundy do budúcnosti
+    predictSmoothMovement(target) {
+        // Predikcia kde bude cieľ - konzervativnejšie
+        const prediction = 0.3; // Kratšia predikcia pre presnosť
         return {
             x: target.position.x + target.velocity.x * prediction,
             y: target.position.y + target.velocity.y * prediction

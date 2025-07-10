@@ -13,12 +13,12 @@ export const GAME_SETTINGS = {
   // 👤 HRÁČ - ZÁKLADNÉ VLASTNOSTI
   STARTING_SCORE: 20,                // Počiatočné skóre nového hráča
   STARTING_LEVEL: 1,                  // Počiatočný level
-  BASE_SPEED: 250,                    // Základná rýchlosť v pixeloch/sekundu
-  SPEED_SIZE_PENALTY: 0.2,              // O koľko sa spomalí za každý bod skóre (NEW!)
-  SPEED_LEVEL_INCREASE: 30,           // O koľko sa zrýchli za každý level
+  BASE_SPEED: 200,                    // Základná rýchlosť v pixeloch/sekundu
+  SPEED_SIZE_PENALTY: 0.3,              // O koľko sa spomalí za každý bod skóre (NEW!)
+  SPEED_LEVEL_INCREASE: 20,           // O koľko sa zrýchli za každý level
   
   // 💨 TURBO MECHANIZMUS
-  TURBO_SPEED_MULTIPLIER: 3,        // Násobič rýchlosti pri turbo (2x = dvojnásobná rýchlosť)
+  TURBO_SPEED_MULTIPLIER: 2,        // Násobič rýchlosti pri turbo (2x = dvojnásobná rýchlosť)
   TURBO_DRAIN_RATE: 15,               // Koľko bodov/sekunda míňa turbo (33 = cca 3x za sekundu)
   MIN_TURBO_SCORE: 5,                 // Minimálne skóre potrebné pre turbo
 
@@ -27,8 +27,8 @@ export const GAME_SETTINGS = {
   COLLISION_OVERLAP: 2,               // Pixely prekrytia potrebné pre kolíziu
   
   // 🆙 LEVEL SYSTÉM
-  LEVEL_UP_BASE: 400,                 // Skóre potrebné pre level 1→2
-  LEVEL_UP_INCREMENT: 100,            // O koľko viac skóre treba za každý ďalší level
+  LEVEL_UP_BASE: 500,                 // Skóre potrebné pre level 1→2
+  LEVEL_UP_INCREMENT: 1,            // O koľko viac skóre treba za každý ďalší level
 
   // 🍽️ NPC BUBLINY (JEDLO)
   NPC_BUBBLE_SCORE: 1,                // Koľko bodov dáva jedna NPC bublina
@@ -38,12 +38,12 @@ export const GAME_SETTINGS = {
   SPAWN_PROTECTION_DURATION: 3000,    // Ochrana po spawn/levelup v milisekundách
   
   // 🤖 BOT AI NASTAVENIA
-  BOT_AI_UPDATE_INTERVAL: 200,        // Ako často sa aktualizuje AI (ms) - nižšie = inteligentnejšie ale viac CPU
+  BOT_AI_UPDATE_INTERVAL: 300,        // Optimalizované: 300ms (boli 200ms) - menej CPU
   BOT_CLEANUP_INTERVAL: 30000,        // Ako často sa čistia neaktívni boti (ms)
   
   // ⚡ VÝKONNOSŤ
-  GAME_LOOP_FPS: 20,                  // FPS herného loopu (nižšie = menej CPU)
-  INPUT_UPDATE_FPS: 60,               // FPS aktualizácie vstupov (vyššie = responsívnejšie)
+  GAME_LOOP_FPS: 25,                  // Optimalizované: 25 FPS (bolo 20) - dobrý kompromis
+  INPUT_UPDATE_FPS: 30,               // Optimalizované: 30 FPS (bolo 60) - stále responsívne
   
   // 🎨 VIZUÁLNE
   RING_THICKNESS: 2,                  // Hrúbka levlových kruhov

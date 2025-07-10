@@ -35,6 +35,10 @@ export default function Game() {
   const joystickInputRef = useRef<Vector2>({ x: 0, y: 0 }); // Smer joysticku (-1 až 1)
   const fpsRef = useRef<{ frames: number; lastTime: number }>({ frames: 0, lastTime: Date.now() });
   const currentFpsRef = useRef<number>(0);
+  // Pridané pre frame limiting
+  const lastFrameTimeRef = useRef<number>(0);
+  const targetFPS = 60; // Maximálne FPS pre plynulosť
+  const frameInterval = 1000 / targetFPS;
   const [leaderboard, setLeaderboard] = useState<Array<{nickname: string, level: number, score: number}>>([]);
   const [leaderboardTab, setLeaderboardTab] = useState<'live' | 'monthly'>('live');
   const [monthlyLeaderboard, setMonthlyLeaderboard] = useState<Array<{id: string, nickname: string, level: number, score: number}>>([]);
@@ -218,7 +222,8 @@ export default function Game() {
       socketRef.current?.emit('updateInput', input);
     };
 
-    const interval = setInterval(updateInput, 1000 / 60); // 60 updates za sekundu pre plynulejšie ovládanie
+    // Znížené pre úsporu CPU - stále dostatočne responsívne
+    const interval = setInterval(updateInput, 1000 / 30); // 30 updates za sekundu
     return () => clearInterval(interval);
   }, [isConnected, gameState, playerId, isMobile, turboActive]);
 
@@ -245,17 +250,15 @@ export default function Game() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Nastav správne rozlíšenie canvasu hneď na začiatku
+    // Zjednodušené nastavenie canvasu bez DPR scaling
     const setupCanvas = () => {
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
       canvas.style.width = '100vw';
       canvas.style.height = '100vh';
     };
     
     setupCanvas();
-    const dpr = window.devicePixelRatio || 1;
 
     // Pridaj resize handler
     const handleResize = () => {
@@ -265,6 +268,13 @@ export default function Game() {
     window.addEventListener('resize', handleResize);
 
     const render = (timestamp: number = 0) => {
+      // Dočasne odstránené frame limiting pre debugging blikania
+      // if (timestamp - lastFrameTimeRef.current < frameInterval) {
+      //   animationFrameRef.current = requestAnimationFrame(render);
+      //   return;
+      // }
+      // lastFrameTimeRef.current = timestamp;
+
       const zoom = isMobile ? 0.3 : 1.0;
 
       // FPS counter
@@ -280,9 +290,9 @@ export default function Game() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
-      ctx.scale(dpr * zoom, dpr * zoom);
+      ctx.scale(zoom, zoom);
 
-      // Gradient pozadie
+      // Gradient pozadie - nový gradient každý frame (stabilné)
       const gradient = ctx.createLinearGradient(0, 0, 0, window.innerHeight / zoom);
       gradient.addColorStop(0, '#E8F4F8');
       gradient.addColorStop(1, '#D0E8F2');
@@ -297,14 +307,33 @@ export default function Game() {
       const player = gameState.players[playerId]!;
       const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);
 
-      // Render NPC bubliny
+      // Viewport boundaries pre culling
+      const viewportBounds = {
+        left: camera.x - 100,
+        right: camera.x + (window.innerWidth / zoom) + 100,
+        top: camera.y - 100,
+        bottom: camera.y + (window.innerHeight / zoom) + 100
+      };
+
+      // Render NPC bubliny s viewport culling
       Object.values(gameState.npcBubbles).forEach(npc => {
+        // Skip ak je mimo viewport (s 100px bufferom)
+        if (npc.position.x < viewportBounds.left || npc.position.x > viewportBounds.right ||
+            npc.position.y < viewportBounds.top || npc.position.y > viewportBounds.bottom) {
+          return;
+        }
         drawBubble(ctx, npc.position, calculateRadius(npc.score), undefined, camera, zoom);
       });
 
-      // Render hráčov
-      Object.values(gameState.players).forEach(player => {
-        drawPlayerBubble(ctx, player, camera, zoom);
+      // Render hráčov s viewport culling
+      Object.values(gameState.players).forEach(p => {
+        // Skip ak je mimo viewport (s bufferom na veľkosť bubliny)
+        const buffer = p.radius! + 50;
+        if (p.position.x < viewportBounds.left - buffer || p.position.x > viewportBounds.right + buffer ||
+            p.position.y < viewportBounds.top - buffer || p.position.y > viewportBounds.bottom + buffer) {
+          return;
+        }
+        drawPlayerBubble(ctx, p, camera, zoom);
       });
 
       // UI overlay
@@ -341,30 +370,26 @@ export default function Game() {
     const screenX = position.x - camera.x;
     const screenY = position.y - camera.y;
 
-    // Skip ak je mimo obrazovky
-    if (screenX + radius < 0 || screenX - radius > window.innerWidth / zoom ||
-        screenY + radius < 0 || screenY - radius > window.innerHeight / zoom) {
-      return;
-    }
-
+    // Optimalizované: NPC bubliny sú malé, jednoduché krúžky
     ctx.save();
     
-    // Priehľadná biela výplň pre NPC bubliny
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    // Jednoduchá biela výplň pre NPC bubliny
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    
     ctx.beginPath();
     ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
     ctx.fill();
-
-    // Biely okraj
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Biely odlesk
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.beginPath();
-    ctx.arc(screenX - radius * 0.3, screenY - radius * 0.3, radius * 0.3, 0, Math.PI * 2);
-    ctx.fill();
+    // Odlesk iba pre väčšie bubliny (optimalizácia)
+    if (radius > 8) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.beginPath();
+      ctx.arc(screenX - radius * 0.3, screenY - radius * 0.3, radius * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
   };
@@ -378,77 +403,81 @@ export default function Game() {
     const screenX = player.position.x - camera.x;
     const screenY = player.position.y - camera.y;
 
-    // Skip ak je mimo obrazovky
-    if (screenX + player.radius! < 0 || screenX - player.radius! > window.innerWidth / zoom ||
-        screenY + player.radius! < 0 || screenY - player.radius! > window.innerHeight / zoom) {
-      return;
-    }
-
     // Blikajúci efekt pre chránených hráčov
     if (player.isInvulnerable) {
-      // Vytvor blikajúci efekt - 3 bliknutia za sekundu
-      const blinkSpeed = 6; // 6 cyklov za sekundu = 3 bliknutia
+      // Optimalizovaný blink - iba 2 cykly za sekundu
+      const blinkSpeed = 4; 
       const time = Date.now() / 1000;
-      const blinkCycle = (Math.sin(time * blinkSpeed * Math.PI) + 1) / 2; // 0-1
-      const opacity = 0.5 + blinkCycle * 0.5; // 0.5-1.0
+      const blinkCycle = (Math.sin(time * blinkSpeed * Math.PI) + 1) / 2;
+      const opacity = 0.6 + blinkCycle * 0.4;
       ctx.globalAlpha = opacity;
     }
 
     ctx.save();
 
-    // Dúhové kruhy - každý level pridá novú farebnú líniu
-    const ringThickness = GAME_SETTINGS.RING_THICKNESS; // hrúbka každého kruhu
-    const ringSpacing = GAME_SETTINGS.RING_SPACING; // medzera medzi kruhmi
-    
-    // Vykresli kruhy od vonkajšieho k vnútornému
-    for (let level = player.level; level >= 1; level--) {
-      const ringRadius = player.radius! - (player.level - level) * (ringThickness + ringSpacing);
+    // Optimalizované kruhy - iba ak je level > 1
+    if (player.level > 1) {
+      const ringThickness = GAME_SETTINGS.RING_THICKNESS;
+      const ringSpacing = GAME_SETTINGS.RING_SPACING;
       
-      if (ringRadius > 0) {
-        const levelColor = getLevelColor(level);
+      // Vykresli iba posledné 3 kruhy pre performancu
+      const maxRings = Math.min(3, player.level);
+      const startLevel = Math.max(1, player.level - maxRings + 1);
+      
+      for (let level = player.level; level >= startLevel; level--) {
+        const ringRadius = player.radius! - (player.level - level) * (ringThickness + ringSpacing);
         
-        ctx.strokeStyle = levelColor;
-        ctx.lineWidth = ringThickness;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, ringRadius, 0, Math.PI * 2);
-        ctx.stroke();
+        if (ringRadius > 5) {
+          const levelColor = getLevelColor(level);
+          
+          ctx.strokeStyle = levelColor;
+          ctx.lineWidth = ringThickness;
+          ctx.beginPath();
+          ctx.arc(screenX, screenY, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
     }
 
     // Tmavšia modrá vnútorná výplň pre hráčov
-    ctx.fillStyle = 'rgba(37, 99, 235, 0.15)'; // Tmavšia modrá s priehľadnosťou
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.15)';
     ctx.beginPath();
-    const innerRadius = Math.max(5, player.radius! - player.level * (ringThickness + ringSpacing));
+    const innerRadius = Math.max(8, player.radius! - Math.min(3, player.level) * (GAME_SETTINGS.RING_THICKNESS + GAME_SETTINGS.RING_SPACING));
     ctx.arc(screenX, screenY, innerRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Svetlejší modrý odlesk pre hráčov
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.4)'; // Svetlejšia modrá pre odlesk
-    ctx.beginPath();
-    ctx.arc(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, player.radius! * 0.2, 0, Math.PI * 2);
-    ctx.fill();
+    // Odlesk iba pre väčšie bubliny
+    if (player.radius! > 15) {
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.4)';
+      ctx.beginPath();
+      ctx.arc(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, player.radius! * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
 
-    // Text v bubline
+    // Optimalizovaný text - iba nickname a level pre malé bubliny
     ctx.save();
     ctx.fillStyle = '#333';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Škáluj font podľa veľkosti bubliny
-    const fontSize = Math.max(10, Math.min(18, player.radius! * 0.18));
-    ctx.font = `${fontSize}px Arial`;
-
-    // Nickname
-    ctx.fillText(player.nickname, screenX, screenY - fontSize * 1.2);
+    const fontSize = Math.max(8, Math.min(16, player.radius! * 0.15));
     
-    // Level
-    ctx.font = `${fontSize * 0.9}px Arial`;
-    ctx.fillText(`Lvl: ${player.level}`, screenX, screenY);
-    // Score
-    ctx.font = `${fontSize * 0.9}px Arial`;
-    ctx.fillText(`Score: ${player.score}`, screenX, screenY + fontSize * 1.2);
+    if (player.radius! > 20) {
+      // Plný text pre väčšie bubliny
+      ctx.font = `${fontSize}px Arial`;
+      ctx.fillText(player.nickname, screenX, screenY - fontSize * 1.1);
+      
+      ctx.font = `${fontSize * 0.8}px Arial`;
+      ctx.fillText(`L${player.level}`, screenX, screenY);
+      ctx.fillText(`${player.score}`, screenX, screenY + fontSize * 1.1);
+    } else {
+      // Iba nickname pre malé bubliny
+      ctx.font = `${fontSize}px Arial`;
+      const shortName = player.nickname.length > 6 ? player.nickname.substring(0, 5) + '.' : player.nickname;
+      ctx.fillText(shortName, screenX, screenY);
+    }
 
     ctx.restore();
     
@@ -480,86 +509,89 @@ export default function Game() {
   const drawUI = (ctx: CanvasRenderingContext2D, player: PlayerBubble) => {
     if (!gameState) return;
     
-    // Získaj top 5 hráčov
-    const topPlayers = Object.values(gameState.players)
-      .sort((a, b) => b.level - a.level || b.score - a.score)
-      .slice(0, 5);
+    // Cache top players computation - update only every 500ms
+    if (!drawUI.lastUpdate || Date.now() - drawUI.lastUpdate > 500) {
+      drawUI.topPlayers = Object.values(gameState.players)
+        .sort((a, b) => b.level - a.level || b.score - a.score)
+        .slice(0, 5);
+      drawUI.lastUpdate = Date.now();
+    }
     
-    // Výška panelu závisí od počtu hráčov
-    const baseHeight = 130; // pre player stats + turbo
-    const leaderboardHeight = topPlayers.length * 20 + 25; // 20px na hráča + header
+    const topPlayers = drawUI.topPlayers || [];
+    
+    // Kompaktnejší UI pre lepší výkon
+    const baseHeight = 110; // zmenšené
+    const leaderboardHeight = topPlayers.length * 18 + 22; // zmenšené
     const totalHeight = baseHeight + leaderboardHeight;
     
     // Score board v ľavom hornom rohu
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(10, 10, 220, totalHeight);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(8, 8, 200, totalHeight);
     
-    // Player stats
+    // Player stats - kompaktnejšie
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '16px Arial';
+    ctx.font = '14px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText(`Level: ${player.level}`, 20, 32);
-    ctx.fillText(`Score: ${player.score}`, 20, 50);
-    ctx.fillText(`Speed: ${Math.round(player.baseSpeed)}`, 20, 68);
-    ctx.fillText(`FPS: ${currentFpsRef.current}`, 20, 86);
+    ctx.fillText(`L${player.level} | ${player.score}pts`, 16, 28);
+    ctx.fillText(`Speed: ${Math.round(player.baseSpeed)}`, 16, 46);
     
-    // Turbo indikátor
+    // Performance info
+    ctx.font = '12px Arial';
+    ctx.fillStyle = currentFpsRef.current < 40 ? '#FF6B6B' : currentFpsRef.current < 55 ? '#FFA500' : '#00FF00';
+    ctx.fillText(`FPS: ${currentFpsRef.current}`, 16, 64);
+    
+    // Turbo indikátor - kompaktný
     if (turboActive) {
       ctx.fillStyle = '#FF6B6B';
-      ctx.font = '14px Arial';
-      ctx.fillText(`🚀 TURBO ACTIVE`, 20, 105);
+      ctx.font = 'bold 12px Arial';
+      ctx.fillText(`🚀 TURBO`, 16, 82);
     }
     
     // Separator line
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(20, 115);
-    ctx.lineTo(210, 115);
+    ctx.moveTo(16, 95);
+    ctx.lineTo(192, 95);
     ctx.stroke();
     
     // Live Leaderboard header
-    ctx.fillStyle = '#FFD700'; // zlatá farba pre header
-    ctx.font = 'bold 14px Arial';
-    ctx.fillText('🏆 LIVE TOP 5', 20, 135);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText('🏆 TOP 5', 16, 112);
     
-    // Live Leaderboard entries
-    ctx.font = '12px Arial';
+    // Live Leaderboard entries - optimalizované
+    ctx.font = '10px Arial';
     topPlayers.forEach((p, index) => {
-      const y = 155 + index * 20;
+      const y = 128 + index * 18;
       
-      // Pozícia
+      // Medal
       ctx.fillStyle = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#FFFFFF';
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-      ctx.fillText(medal, 20, y);
+      const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}`;
+      ctx.fillText(medal, 16, y);
       
-      // Nickname (skráť ak je dlhý)
-      let nickname = p.nickname;
-      if (nickname.length > 8) {
-        nickname = nickname.substring(0, 7) + '...';
-      }
+      // Nickname - skrátený
+      let nickname = p.nickname.length > 7 ? p.nickname.substring(0, 6) + '.' : p.nickname;
       
       // Zvýrazni seba
-      if (p.id === player.id) {
-        ctx.fillStyle = '#00FF00'; // zelená pre seba
-        ctx.font = 'bold 12px Arial';
-      } else {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px Arial';
-      }
+      ctx.fillStyle = p.id === player.id ? '#00FF00' : '#FFFFFF';
+      ctx.font = p.id === player.id ? 'bold 10px Arial' : '10px Arial';
+      ctx.fillText(nickname, 38, y);
       
-      ctx.fillText(nickname, 45, y);
-      
-      // Level a Score
-      ctx.fillStyle = index < 3 ? (index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : '#CD7F32') : '#CCCCCC';
-      ctx.font = '11px Arial';
+      // Stats
+      ctx.fillStyle = '#CCCCCC';
+      ctx.font = '9px Arial';
       ctx.fillText(`L${p.level}`, 120, y);
-      ctx.fillText(`${p.score}`, 150, y);
+      ctx.fillText(`${p.score}`, 145, y);
     });
     
     ctx.restore();
   };
+  
+  // Add static properties for caching
+  drawUI.lastUpdate = 0;
+  drawUI.topPlayers = [];
 
   if (!isPlaying) {
     return (
