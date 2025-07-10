@@ -102,9 +102,14 @@ export default function Game() {
     if (!socketRef.current) return;
     
     const startTime = Date.now();
+    const timeoutId = setTimeout(() => {
+      setConnectionLatency(9999); // Timeout indicator
+    }, 5000);
+    
     socketRef.current.emit('ping', startTime);
     
     socketRef.current.once('pong', (sentTime: number) => {
+      clearTimeout(timeoutId);
       const latency = Date.now() - sentTime;
       setConnectionLatency(latency);
     });
@@ -114,16 +119,34 @@ export default function Game() {
   useEffect(() => {
     if (!isPlaying || !nickname) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001');
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001', {
+      forceNew: true,
+      timeout: 5000,
+      transports: ['websocket'], // Force WebSocket, skip polling
+      upgrade: false,
+      rememberUpgrade: false
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log('🟢 Socket.IO connected, transport:', socket.io.engine.transport.name);
       setIsConnected(true);
       setConnectionStatus('connected');
       socket.emit('join', nickname);
       // Požiadaj o mesačný leaderboard hneď pri pripojení
       socket.emit('getMonthlyLeaderboard');
       socket.emit('getLeaderboardStats');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('🔴 Socket.IO connection error:', error);
+      setConnectionStatus('error');
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('🟡 Socket.IO disconnected, reason:', reason);
+      setIsConnected(false);
+      setConnectionStatus('disconnected');
     });
 
     socket.on('gameState', (state: GameState) => {
@@ -168,15 +191,6 @@ export default function Game() {
           createBubblePopEffect(poppedPlayer.position, poppedPlayer.radius!, poppedPlayer.color || '#FFFFFF');
         }
       }
-    });
-
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-      setConnectionStatus('disconnected');
-    });
-
-    socket.on('connect_error', () => {
-      setConnectionStatus('error');
     });
 
     return () => {

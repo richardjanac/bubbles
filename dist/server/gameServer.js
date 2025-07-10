@@ -80,7 +80,14 @@ class GameServer {
                 methods: ['GET', 'POST'],
                 credentials: true,
                 allowedHeaders: ['Content-Type']
-            }
+            },
+            // Optimalizácia pre latency
+            pingTimeout: 3000,
+            pingInterval: 1000,
+            upgradeTimeout: 3000,
+            transports: ['websocket', 'polling'],
+            // Menšie buffery pre nižšiu latency
+            maxHttpBufferSize: 1e6
         });
         // Inicializuj mesačný leaderboard
         this.leaderboardPath = path.join(__dirname, 'monthlyLeaderboard.json');
