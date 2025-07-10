@@ -13,8 +13,8 @@ import {
 } from '../types/game';
 
 // Lazy load heavy components
-const Joystick = dynamic(() => import('./Joystick'), { ssr: false });
-const TurboButton = dynamic(() => import('./TurboButton'), { ssr: false });
+const Joystick = dynamic(() => import('./Joystick'));
+const TurboButton = dynamic(() => import('./TurboButton'));
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
