@@ -1,60 +1,26 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  // Performance optimizations  
-  compress: true,
-  
-  // Experimental features for better performance
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Optimalizácie pre Socket.IO
   experimental: {
-    optimizePackageImports: ['socket.io-client'],
+    esmExternals: 'loose'
   },
-  
-  // Image optimization
-  images: {
-    formats: ['image/webp', 'image/avif'],
-    minimumCacheTTL: 31536000, // 1 year
+  // Environment variables
+  env: {
+    NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app'
   },
-  
-  // Bundle analyzer in development
-  ...(process.env.ANALYZE === 'true' && {
-    webpack: (config: any) => {
-      config.plugins.push(
-        new (require('webpack-bundle-analyzer')).BundleAnalyzerPlugin({
-          analyzerMode: 'static',
-          openAnalyzer: false,
-        })
-      );
-      return config;
-    },
-  }),
-  
-  // Headers for caching
+  // WebSocket support  
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/api/(.*)',
         headers: [
-          {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on'
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY'
-          }
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
         ],
       },
-      {
-        source: '/static/(.*)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable'
-          }
-        ],
-      },
-    ];
+    ]
   },
-};
+}
 
-export default nextConfig;
+export default nextConfig
