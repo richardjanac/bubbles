@@ -121,10 +121,8 @@ export default function Game() {
 
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
       forceNew: true,
-      timeout: 10000,  // Longer timeout for Railway
-      transports: ['polling', 'websocket'], // Polling FIRST, then upgrade
-      upgrade: true,   // Allow upgrade to WebSocket after handshake
-      rememberUpgrade: false
+      timeout: 5000,
+      transports: ['websocket', 'polling']
     });
     socketRef.current = socket;
 
@@ -203,7 +201,7 @@ export default function Game() {
   useEffect(() => {
     if (isPlaying) return; // Nepripájaj sa ak už hráme
     
-          const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app');
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app');
     
     socket.on('connect', () => {
       // Požiadaj o mesačný leaderboard pre hlavné menu
@@ -272,12 +270,20 @@ export default function Game() {
       if (isMobile) {
         // Pre joystick používame smer na výpočet cieľovej pozície
         const joystickDirection = joystickInputRef.current;
-        const moveDistance = 200; // Vzdialenosť kam sa má bublina snažiť ísť
         
-        targetPosition = {
-          x: player.position.x + joystickDirection.x * moveDistance,
-          y: player.position.y + joystickDirection.y * moveDistance
-        };
+        // Ak je joystick v pokoji (0,0), postavi target na aktuálnu pozíciu hráča
+        if (Math.abs(joystickDirection.x) < 0.01 && Math.abs(joystickDirection.y) < 0.01) {
+          targetPosition = {
+            x: player.position.x,
+            y: player.position.y
+          };
+        } else {
+          const moveDistance = 200; // Vzdialenosť kam sa má bublina snažiť ísť
+          targetPosition = {
+            x: player.position.x + joystickDirection.x * moveDistance,
+            y: player.position.y + joystickDirection.y * moveDistance
+          };
+        }
       } else {
         // Prepočítaj mouse pozíciu na world koordináty
         const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);
