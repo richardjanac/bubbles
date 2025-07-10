@@ -129,7 +129,7 @@ export default function Game() {
         // Vytvor particle efekt pre prasklú bublinu
         const poppedPlayer = gameState?.players[poppedId];
         if (poppedPlayer) {
-          createBubblePopEffect(poppedPlayer.position, poppedPlayer.radius!, poppedPlayer.color);
+          createBubblePopEffect(poppedPlayer.position, poppedPlayer.radius!, poppedPlayer.color || '#FFFFFF');
         }
       }
     });
