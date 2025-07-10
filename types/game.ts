@@ -67,6 +67,7 @@ export interface ServerToClientEvents {
   levelUp: (playerId: string, newLevel: number) => void;
   monthlyLeaderboard: (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => void;
   leaderboardStats: (stats: {totalPlayers: number, topLevel: number, topScore: number}) => void;
+  pong: (timestamp: number) => void;
 }
 
 export interface ClientToServerEvents {
@@ -75,4 +76,5 @@ export interface ClientToServerEvents {
   leave: () => void;
   getMonthlyLeaderboard: (limit?: number) => void;
   getLeaderboardStats: () => void;
+  ping: (timestamp: number) => void;
 } 

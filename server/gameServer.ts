@@ -140,6 +140,11 @@ export class GameServer {
         socket.emit('leaderboardStats', this.getMonthlyLeaderboardStats());
       });
 
+      // Ping/pong pre latency monitoring
+      socket.on('ping', (timestamp: number) => {
+        socket.emit('pong', timestamp);
+      });
+
       socket.on('disconnect', () => {
         const wasRealPlayer = this.realPlayers.has(socket.id);
         const player = this.gameState.players[socket.id];

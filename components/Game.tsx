@@ -88,6 +88,28 @@ export default function Game() {
     };
   }, [isPlaying]);
 
+  // Performance monitoring
+  const [connectionLatency, setConnectionLatency] = useState<number>(0);
+  const [inputLatency, setInputLatency] = useState<number>(0);
+  const [renderLatency, setRenderLatency] = useState<number>(0);
+  const lastInputTime = useRef<number>(0);
+  const lastServerResponse = useRef<number>(0);
+  const lastRenderTime = useRef<number>(0);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
+
+  // Connection latency test
+  const testLatency = useCallback(() => {
+    if (!socketRef.current) return;
+    
+    const startTime = Date.now();
+    socketRef.current.emit('ping', startTime);
+    
+    socketRef.current.once('pong', (sentTime: number) => {
+      const latency = Date.now() - sentTime;
+      setConnectionLatency(latency);
+    });
+  }, []);
+
   // Socket.IO pripojenie
   useEffect(() => {
     if (!isPlaying || !nickname) return;
@@ -97,6 +119,7 @@ export default function Game() {
 
     socket.on('connect', () => {
       setIsConnected(true);
+      setConnectionStatus('connected');
       socket.emit('join', nickname);
       // Požiadaj o mesačný leaderboard hneď pri pripojení
       socket.emit('getMonthlyLeaderboard');
@@ -104,6 +127,15 @@ export default function Game() {
     });
 
     socket.on('gameState', (state: GameState) => {
+      const now = Date.now();
+      lastServerResponse.current = now;
+      
+      // Calculate input latency if we have last input time
+      if (lastInputTime.current > 0) {
+        const inputLag = now - lastInputTime.current;
+        setInputLatency(inputLag);
+      }
+      
       setGameState(state);
       // Nastav playerId ak ešte nie je nastavené
       if (!playerId && socket.id && state.players[socket.id]) {
@@ -114,6 +146,9 @@ export default function Game() {
         setIsDead(true);
       }
     });
+
+    // Latency monitoring
+    const latencyInterval = setInterval(testLatency, 1000);
 
     socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
       setMonthlyLeaderboard(leaderboard);
@@ -137,10 +172,16 @@ export default function Game() {
 
     socket.on('disconnect', () => {
       setIsConnected(false);
+      setConnectionStatus('disconnected');
+    });
+
+    socket.on('connect_error', () => {
+      setConnectionStatus('error');
     });
 
     return () => {
       socket.disconnect();
+      clearInterval(latencyInterval);
     };
   }, [isPlaying, nickname, reconnectTrigger]); // Pridaný reconnectTrigger
 
@@ -237,6 +278,7 @@ export default function Game() {
         turbo: turboActive
       };
 
+      lastInputTime.current = Date.now();
       socketRef.current?.emit('updateInput', input);
     };
 
@@ -286,6 +328,8 @@ export default function Game() {
     window.addEventListener('resize', handleResize);
 
     const render = (timestamp: number = 0) => {
+      const renderStart = performance.now();
+      
       // Dočasne odstránené frame limiting pre debugging blikania
       // if (timestamp - lastFrameTimeRef.current < frameInterval) {
       //   animationFrameRef.current = requestAnimationFrame(render);
@@ -356,6 +400,13 @@ export default function Game() {
 
       // UI overlay
       drawUI(ctx, player);
+
+      // Calculate render latency
+      const renderEnd = performance.now();
+      const renderTime = renderEnd - renderStart;
+      if (renderTime > 0) {
+        setRenderLatency(Math.round(renderTime * 100) / 100); // Round to 2 decimal places
+      }
 
       animationFrameRef.current = requestAnimationFrame(render);
     };
@@ -1108,6 +1159,40 @@ export default function Game() {
           </div>
         </div>
       )}
+              {/* Performance monitor */}
+        <div className="absolute top-4 left-4 text-white bg-black bg-opacity-75 px-3 py-2 rounded text-xs font-mono">
+          <div className="flex flex-col space-y-1">
+            <div>
+              FPS: <span className={currentFpsRef.current >= 55 ? 'text-green-400' : currentFpsRef.current >= 30 ? 'text-yellow-400' : 'text-red-400'}>
+                {currentFpsRef.current}
+              </span>
+            </div>
+            <div>
+              Ping: <span className={connectionLatency <= 50 ? 'text-green-400' : connectionLatency <= 100 ? 'text-yellow-400' : 'text-red-400'}>
+                {connectionLatency}ms
+              </span>
+            </div>
+            <div>
+              Input: <span className={inputLatency <= 50 ? 'text-green-400' : inputLatency <= 100 ? 'text-yellow-400' : 'text-red-400'}>
+                {inputLatency}ms
+              </span>
+            </div>
+            <div>
+              Render: <span className={renderLatency <= 8 ? 'text-green-400' : renderLatency <= 16 ? 'text-yellow-400' : 'text-red-400'}>
+                {renderLatency}ms
+              </span>
+            </div>
+            <div>
+              Connection: <span className={
+                connectionStatus === 'connected' ? 'text-green-400' : 
+                connectionStatus === 'connecting' ? 'text-yellow-400' : 
+                'text-red-400'
+              }>
+                {connectionStatus}
+              </span>
+            </div>
+          </div>
+        </div>
     </div>
   );
 } 

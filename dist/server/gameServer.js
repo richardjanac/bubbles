@@ -131,6 +131,10 @@ class GameServer {
             socket.on('getLeaderboardStats', () => {
                 socket.emit('leaderboardStats', this.getMonthlyLeaderboardStats());
             });
+            // Ping/pong pre latency monitoring
+            socket.on('ping', (timestamp) => {
+                socket.emit('pong', timestamp);
+            });
             socket.on('disconnect', () => {
                 const wasRealPlayer = this.realPlayers.has(socket.id);
                 const player = this.gameState.players[socket.id];
@@ -818,7 +822,7 @@ class GameServer {
             }
             // Pošli aktualizovaný stav všetkým klientom
             this.io.emit('gameState', this.serializeGameState());
-        }, 1000 / 20); // 20 FPS pre úsporu zdrojov
+        }, 1000 / game_1.GAME_SETTINGS.GAME_LOOP_FPS); // Používa konfiguračné nastavenie
     }
     stop() {
         if (this.updateInterval) {
