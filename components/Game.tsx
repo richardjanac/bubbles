@@ -1,21 +1,20 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import dynamic from 'next/dynamic';
 import { 
+  GameState, 
   PlayerBubble, 
-  NPCBubble, 
-  GameState,
-  PlayerInput,
-  ServerToClientEvents,
-  ClientToServerEvents,
+  PlayerInput, 
   Vector2,
   GAME_SETTINGS,
-  calculateRadius,
-  getLevelColor
+  calculateRadius
 } from '../types/game';
-import Joystick from './Joystick';
-import TurboButton from './TurboButton';
+
+// Lazy load heavy components
+const Joystick = dynamic(() => import('./Joystick'), { ssr: false });
+const TurboButton = dynamic(() => import('./TurboButton'), { ssr: false });
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
