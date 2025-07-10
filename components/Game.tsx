@@ -119,22 +119,42 @@ export default function Game() {
   useEffect(() => {
     if (!isPlaying || !nickname) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
-      forceNew: true,
-      timeout: 3000,
-      transports: ['polling', 'websocket'], // Polling FIRST pre Railway
-      upgrade: true,
-      rememberUpgrade: false,
-      autoConnect: true,
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-      maxReconnectionAttempts: 5
-    });
+    // Detekcia mobilného zariadenia a pomalej siete
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isSlowConnection = navigator.connection && 
+      (navigator.connection.effectiveType === 'slow-2g' || 
+       navigator.connection.effectiveType === '2g' || 
+       navigator.connection.effectiveType === '3g' ||
+       navigator.connection.type === 'cellular');
+    
+    // Použij mobilné optimalizácie pre mobilné zariadenia ALEBO pomalé pripojenie
+    const useMobileOptimizations = isMobileDevice || isSlowConnection;
+
+          const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
+        forceNew: true,
+        timeout: useMobileOptimizations ? 10000 : 3000, // Ešte dlhší timeout pre mobile
+        transports: useMobileOptimizations ? ['polling'] : ['polling', 'websocket'], // Len polling pre mobile
+        upgrade: !useMobileOptimizations, // Zakáž WebSocket upgrade pre mobile
+        rememberUpgrade: false,
+        autoConnect: true,
+        reconnection: true,
+        reconnectionDelay: useMobileOptimizations ? 3000 : 1000, // Dlhšie delays
+        reconnectionAttempts: useMobileOptimizations ? 2 : 3, // Menej pokusov pre mobile
+        maxReconnectionAttempts: useMobileOptimizations ? 2 : 3,
+        // Agresívne mobilné optimalizácie
+        pingTimeout: useMobileOptimizations ? 15000 : 5000, // 15s timeout pre mobile
+        pingInterval: useMobileOptimizations ? 20000 : 5000 // 20s ping interval pre mobile
+      });
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('🟢 Socket.IO connected, transport:', socket.io.engine.transport.name);
+      console.log('🟢 Socket.IO connected');
+      console.log('📱 Mobile device:', isMobileDevice);
+      console.log('📶 Slow connection:', isSlowConnection);  
+      console.log('⚡ Using mobile optimizations:', useMobileOptimizations);
+      console.log('🚌 Transport:', socket.io.engine.transport.name);
+      console.log('🔗 Socket ID:', socket.id);
+      
       setIsConnected(true);
       setConnectionStatus('connected');
       socket.emit('join', nickname);
@@ -175,8 +195,9 @@ export default function Game() {
       }
     });
 
-    // Latency monitoring - menej často pre lepšiu výkonnosť
-    const latencyInterval = setInterval(testLatency, 2000);
+    // Latency monitoring - adaptívne pre mobile
+    const pingFrequency = useMobileOptimizations ? 5000 : 2000; // Mobile: každých 5s, Desktop: každé 2s
+    const latencyInterval = setInterval(testLatency, pingFrequency);
 
     socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
       setMonthlyLeaderboard(leaderboard);
@@ -313,8 +334,9 @@ export default function Game() {
       socketRef.current?.emit('updateInput', input);
     };
 
-    // Optimalizované pre nižšiu latenciu a menšiu záťaž
-    const interval = setInterval(updateInput, 1000 / 20); // 20 updates za sekundu
+    // Adaptívne input frequency
+    const inputFrequency = isMobile ? (1000 / 15) : (1000 / 20); // Mobile: 15fps, Desktop: 20fps
+    const interval = setInterval(updateInput, inputFrequency);
     return () => clearInterval(interval);
   }, [isConnected, gameState, playerId, isMobile, turboActive]);
 
