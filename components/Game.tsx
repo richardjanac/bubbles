@@ -723,7 +723,7 @@ export default function Game() {
   
   // Add static properties for caching
   drawUI.lastUpdate = 0;
-  drawUI.topPlayers = [];
+  drawUI.topPlayers = [] as PlayerBubble[];
 
   // Funkcia pre vytvorenie bubble pop efektu
   const createBubblePopEffect = useCallback((position: Vector2, radius: number, color: string) => {
