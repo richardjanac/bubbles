@@ -57,6 +57,10 @@ class GameServer {
             res.writeHead(404);
             res.end('Not Found');
         });
+        // Keep-alive pre Railway - ping server každých 5 minút
+        setInterval(() => {
+            console.log('🔄 Keep-alive ping - server active');
+        }, 5 * 60 * 1000); // 5 minút
         this.io = new socket_io_1.Server(this.httpServer, {
             cors: {
                 origin: (origin, callback) => {
