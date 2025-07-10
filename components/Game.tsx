@@ -121,9 +121,9 @@ export default function Game() {
 
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001', {
       forceNew: true,
-      timeout: 5000,
-      transports: ['websocket'], // Force WebSocket, skip polling
-      upgrade: false,
+      timeout: 10000,  // Longer timeout for Railway
+      transports: ['polling', 'websocket'], // Polling FIRST, then upgrade
+      upgrade: true,   // Allow upgrade to WebSocket after handshake
       rememberUpgrade: false
     });
     socketRef.current = socket;

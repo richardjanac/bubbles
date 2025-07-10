@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: paddock-bubbles-server
+    env: node
+    buildCommand: npm install && npm run build:server
+    startCommand: node dist/server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: paddock-bubbles-server
+          property: port
+    healthCheckPath: /health
+    region: frankfurt  # European region for better latency
+    plan: starter  # Free tier 

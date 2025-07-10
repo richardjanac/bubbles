@@ -86,13 +86,17 @@ class GameServer {
                 credentials: true,
                 allowedHeaders: ['Content-Type']
             },
-            // Optimalizácia pre latency
-            pingTimeout: 3000,
-            pingInterval: 1000,
-            upgradeTimeout: 3000,
-            transports: ['websocket', 'polling'],
+            // AGRESÍVNE optimalizácie pre Railway WebSocket problems
+            pingTimeout: 5000, // Kratší timeout
+            pingInterval: 2000, // Častejšie ping
+            upgradeTimeout: 5000, // Rýchlejší upgrade timeout
+            transports: ['polling', 'websocket'], // Polling FIRST (obídeme WebSocket issue)
+            allowEIO3: true, // Backward compatibility
             // Menšie buffery pre nižšiu latency
-            maxHttpBufferSize: 1e6
+            maxHttpBufferSize: 1e6,
+            // Agresívny cleanup
+            destroyUpgrade: false,
+            destroyUpgradeTimeout: 1000
         });
         // Inicializuj mesačný leaderboard
         this.leaderboardPath = path.join(__dirname, 'monthlyLeaderboard.json');
