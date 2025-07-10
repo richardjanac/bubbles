@@ -6,7 +6,7 @@ const nextConfig = {
   },
   // Environment variables
   env: {
-    NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app'
+    NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL || 'https://bubbles-teta.onrender.com'
   },
   // WebSocket support  
   async headers() {

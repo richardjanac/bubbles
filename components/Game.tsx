@@ -119,7 +119,7 @@ export default function Game() {
   useEffect(() => {
     if (!isPlaying || !nickname) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://bubbles-teta.onrender.com', {
       forceNew: true,
       timeout: 10000,  // Longer timeout for Railway
       transports: ['polling', 'websocket'], // Polling FIRST, then upgrade
@@ -203,7 +203,7 @@ export default function Game() {
   useEffect(() => {
     if (isPlaying) return; // Nepripájaj sa ak už hráme
     
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app');
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://bubbles-teta.onrender.com');
     
     socket.on('connect', () => {
       // Požiadaj o mesačný leaderboard pre hlavné menu
@@ -972,7 +972,7 @@ export default function Game() {
                       socketRef.current.emit('getMonthlyLeaderboard');
                     } else {
                       // Ak nie sme pripojení v hre, použij nové pripojenie
-                      const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app');
+                      const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://bubbles-teta.onrender.com');
                       socket.on('connect', () => {
                         socket.emit('getMonthlyLeaderboard');
                       });
