@@ -67,7 +67,13 @@ export class GameServer {
           if (!origin || allowedOrigins.includes(origin)) {
             console.log(`✅ CORS povolený pre: ${origin || 'same-origin'}`);
             callback(null, true);
-          } else {
+          } 
+          // Povol všetky Vercel preview URLs (obsahujú vercel.app)
+          else if (origin && origin.includes('vercel.app')) {
+            console.log(`✅ CORS povolený pre Vercel preview: ${origin}`);
+            callback(null, true);
+          } 
+          else {
             console.log(`❌ CORS zamietnutý pre: ${origin}`);
             callback(new Error('Not allowed by CORS'));
           }
