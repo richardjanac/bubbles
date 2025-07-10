@@ -389,41 +389,21 @@ export default function Game() {
 
     ctx.save();
     
-    // Realistická bublina s gradientom a odleskami ako na obrázku
-    const gradient = ctx.createRadialGradient(
-      screenX - radius * 0.3, screenY - radius * 0.3, 0,
-      screenX, screenY, radius
-    );
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)'); // Svetlý stred
-    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.4)'); // Stredná časť
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0.1)'); // Tmavý okraj
-    
-    ctx.fillStyle = gradient;
+    // Jednoduchá biela bublina s 3% opacity
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.beginPath();
     ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Okraj bubliny
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.lineWidth = 1;
+    // 2px biely okraj s 100% opacity
+    ctx.strokeStyle = 'rgba(255, 255, 255, 1.0)';
+    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Hlavný odlesk (veľký)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.beginPath();
-    ctx.arc(screenX - radius * 0.35, screenY - radius * 0.35, radius * 0.25, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Menší odlesk
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.beginPath();
-    ctx.arc(screenX + radius * 0.2, screenY - radius * 0.4, radius * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Ešte menší odlesk pre detail
+    // Jednoduchý biely odlesk
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.beginPath();
-    ctx.arc(screenX - radius * 0.1, screenY + radius * 0.3, radius * 0.08, 0, Math.PI * 2);
+    ctx.arc(screenX - radius * 0.3, screenY - radius * 0.3, radius * 0.2, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -449,16 +429,8 @@ export default function Game() {
 
     ctx.save();
 
-    // Realistická biela bublina s gradientom ako na obrázku
-    const gradient = ctx.createRadialGradient(
-      screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, 0,
-      screenX, screenY, player.radius!
-    );
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)'); // Veľmi svetlý stred
-    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.6)'); // Stredná časť
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0.2)'); // Priehľadný okraj
-    
-    ctx.fillStyle = gradient;
+    // Jednoduchá biela bublina s 3% opacity
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.beginPath();
     ctx.arc(screenX, screenY, player.radius!, 0, Math.PI * 2);
     ctx.fill();
@@ -496,32 +468,18 @@ export default function Game() {
       }
     }
 
-    // Okraj bubliny
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    // Biely okraj 2px s 100% opacity
+    ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(screenX, screenY, player.radius!, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Hlavný odlesk (veľký)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    // Jednoduchý biely odlesk s 50% opacity
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.beginPath();
-    ctx.arc(screenX - player.radius! * 0.35, screenY - player.radius! * 0.35, player.radius! * 0.25, 0, Math.PI * 2);
+    ctx.arc(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, player.radius! * 0.2, 0, Math.PI * 2);
     ctx.fill();
-
-    // Menší odlesk
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.beginPath();
-    ctx.arc(screenX + player.radius! * 0.2, screenY - player.radius! * 0.4, player.radius! * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Ešte menší odlesk pre detail
-    if (player.radius! > 20) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.beginPath();
-      ctx.arc(screenX - player.radius! * 0.1, screenY + player.radius! * 0.3, player.radius! * 0.08, 0, Math.PI * 2);
-      ctx.fill();
-    }
 
     ctx.restore();
 
