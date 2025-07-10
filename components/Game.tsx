@@ -7,6 +7,8 @@ import {
   GameState, 
   PlayerBubble, 
   PlayerInput, 
+  ServerToClientEvents,
+  ClientToServerEvents,
   Vector2,
   GAME_SETTINGS,
   calculateRadius
