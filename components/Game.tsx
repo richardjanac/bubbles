@@ -211,7 +211,7 @@ export default function Game() {
       if (!player) return;
 
       let targetPosition: Vector2;
-      const zoom = isMobile ? 0.375 : 1.0; // 25% väčší zoom pre mobily (0.3 * 1.25 = 0.375)
+      const zoom = isMobile ? 0.5 : 1.0; // 67% väčší zoom pre mobily
 
       if (isMobile) {
         // Pre joystick používame smer na výpočet cieľovej pozície
@@ -292,7 +292,7 @@ export default function Game() {
       // }
       // lastFrameTimeRef.current = timestamp;
 
-      const zoom = isMobile ? 0.375 : 1.0; // 25% väčší zoom pre mobily (0.3 * 1.25 = 0.375)
+      const zoom = isMobile ? 0.5 : 1.0; // 67% väčší zoom pre mobily
 
       // FPS counter
       fpsRef.current.frames++;
@@ -545,7 +545,7 @@ export default function Game() {
     }
     
     const topPlayers = drawUI.topPlayers || [];
-    const zoom = isMobile ? 0.375 : 1.0;
+    const zoom = isMobile ? 0.5 : 1.0;
     const screenWidth = window.innerWidth / zoom;
     
     ctx.save();
