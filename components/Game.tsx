@@ -485,7 +485,7 @@ export default function Game() {
 
     // Text v bubline - veľké skóre v strede, meno a level pod ním
     ctx.save();
-    ctx.fillStyle = '#333333'; // Tmavý text pre kontrast
+    ctx.fillStyle = '#FFFFFF'; // Biely text
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -503,7 +503,7 @@ export default function Game() {
     // Väčší level pod nickname
     const levelFontSize = Math.max(10, Math.min(16, player.radius! * 0.16));
     ctx.font = `${levelFontSize}px Arial`;
-    ctx.fillStyle = '#555555'; // Trochu svetlejší pre level
+    ctx.fillStyle = '#FFFFFF'; // Biely text pre level
     ctx.fillText(`Level ${player.level}`, screenX, screenY + scoreFontSize * 0.5 + nameFontSize * 1.1);
 
     ctx.restore();
@@ -1052,8 +1052,8 @@ export default function Game() {
       
       {isDead && playerId && !gameState?.players[playerId] && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-75 text-white p-8 rounded-lg text-center" style={{ zIndex: 3000 }}>
-          <h2 className="text-2xl mb-4">Koniec hry!</h2>
-          <p className="mb-6">Boli ste zjedený</p>
+          <h2 className="text-3xl mb-4">Ó, bol si prasknutý!</h2>
+          <p className="mb-6">Skús to znova</p>
           <div className="flex gap-4 justify-center">
             <button
               className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
