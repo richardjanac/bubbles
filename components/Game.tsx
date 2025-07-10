@@ -400,11 +400,16 @@ export default function Game() {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Jednoduchý biely odlesk
+    // Podlhovastý biely odlesk ako na obrázku
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.save();
+    ctx.translate(screenX - radius * 0.3, screenY - radius * 0.3);
+    ctx.rotate(-Math.PI / 6); // Mierne natočený
+    ctx.scale(2, 0.8); // Podlhovastý tvar - 2x širší, 0.8x užší
     ctx.beginPath();
-    ctx.arc(screenX - radius * 0.3, screenY - radius * 0.3, radius * 0.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 0.15, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     ctx.restore();
   };
@@ -475,11 +480,16 @@ export default function Game() {
     ctx.arc(screenX, screenY, player.radius!, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Jednoduchý biely odlesk s 50% opacity
+    // Podlhovastý biely odlesk s 50% opacity ako na obrázku
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.save();
+    ctx.translate(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3);
+    ctx.rotate(-Math.PI / 6); // Mierne natočený
+    ctx.scale(2, 0.8); // Podlhovastý tvar - 2x širší, 0.8x užší
     ctx.beginPath();
-    ctx.arc(screenX - player.radius! * 0.3, screenY - player.radius! * 0.3, player.radius! * 0.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, player.radius! * 0.15, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     ctx.restore();
 
