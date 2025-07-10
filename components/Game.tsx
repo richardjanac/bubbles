@@ -121,8 +121,15 @@ export default function Game() {
 
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
       forceNew: true,
-      timeout: 5000,
-      transports: ['websocket', 'polling']
+      timeout: 3000,
+      transports: ['polling', 'websocket'], // Polling FIRST pre Railway
+      upgrade: true,
+      rememberUpgrade: false,
+      autoConnect: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      maxReconnectionAttempts: 5
     });
     socketRef.current = socket;
 
@@ -168,8 +175,8 @@ export default function Game() {
       }
     });
 
-    // Latency monitoring
-    const latencyInterval = setInterval(testLatency, 1000);
+    // Latency monitoring - menej často pre lepšiu výkonnosť
+    const latencyInterval = setInterval(testLatency, 2000);
 
     socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
       setMonthlyLeaderboard(leaderboard);
@@ -201,7 +208,11 @@ export default function Game() {
   useEffect(() => {
     if (isPlaying) return; // Nepripájaj sa ak už hráme
     
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app');
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
+      transports: ['polling', 'websocket'],
+      upgrade: true,
+      timeout: 3000
+    });
     
     socket.on('connect', () => {
       // Požiadaj o mesačný leaderboard pre hlavné menu
@@ -302,8 +313,8 @@ export default function Game() {
       socketRef.current?.emit('updateInput', input);
     };
 
-    // Znížené pre úsporu CPU - stále dostatočne responsívne
-    const interval = setInterval(updateInput, 1000 / 30); // 30 updates za sekundu
+    // Optimalizované pre nižšiu latenciu a menšiu záťaž
+    const interval = setInterval(updateInput, 1000 / 20); // 20 updates za sekundu
     return () => clearInterval(interval);
   }, [isConnected, gameState, playerId, isMobile, turboActive]);
 
