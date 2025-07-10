@@ -727,7 +727,16 @@ export default function Game() {
 
   // Funkcia pre vytvorenie bubble pop efektu
   const createBubblePopEffect = useCallback((position: Vector2, radius: number, color: string) => {
-    const newParticles = [];
+    const newParticles: Array<{
+      id: string;
+      position: Vector2;
+      velocity: Vector2;
+      size: number;
+      opacity: number;
+      color: string;
+      life: number;
+      maxLife: number;
+    }> = [];
     const particleCount = Math.min(20, Math.max(8, radius / 3)); // 8-20 častíc podľa veľkosti bubliny
     
     for (let i = 0; i < particleCount; i++) {
