@@ -134,10 +134,7 @@ export default function Game() {
         autoConnect: true,
         reconnection: true,
         reconnectionDelay: useMobileOptimizations ? 3000 : 1000, // Dlhšie delays
-        reconnectionAttempts: useMobileOptimizations ? 2 : 3, // Menej pokusov pre mobile
-        // Agresívne mobilné optimalizácie
-        pingTimeout: useMobileOptimizations ? 15000 : 5000, // 15s timeout pre mobile
-        pingInterval: useMobileOptimizations ? 20000 : 5000 // 20s ping interval pre mobile
+        reconnectionAttempts: useMobileOptimizations ? 2 : 3 // Menej pokusov pre mobile
       });
     socketRef.current = socket;
 
