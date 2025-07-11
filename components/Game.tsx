@@ -190,6 +190,12 @@ export default function Game() {
         lastInputTime.current = 0;
       }
       
+      // Debug pre player position updates
+      if (socket.id && state.players[socket.id]) {
+        const player = state.players[socket.id];
+        console.log('📥 Received gameState - player pos:', player.position, 'speed:', player.baseSpeed);
+      }
+      
       setGameState(state);
       // Nastav playerId ak ešte nie je nastavené
       if (!playerId && socket.id && state.players[socket.id]) {
@@ -343,6 +349,16 @@ export default function Game() {
         position: targetPosition,
         turbo: turboActive
       };
+
+      // Debug log pre input
+      console.log('📤 Sending input:', {
+        playerPos: player.position,
+        targetPos: targetPosition,
+        distance: Math.sqrt(
+          Math.pow(targetPosition.x - player.position.x, 2) + 
+          Math.pow(targetPosition.y - player.position.y, 2)
+        ).toFixed(2)
+      });
 
       // Nastav input time len ak zatiaľ nie je nastavený (čaká na odpoveď)
       if (lastInputTime.current === 0) {
