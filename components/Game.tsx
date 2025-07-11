@@ -57,7 +57,17 @@ export default function Game() {
   // Detekcia mobilného zariadenia
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
+      const hasTouchstart = 'ontouchstart' in window;
+      const hasMaxTouchPoints = navigator.maxTouchPoints > 0;
+      const isMobileResult = hasTouchstart || hasMaxTouchPoints;
+      
+      console.log('🔍 Mobile detection:');
+      console.log('  - hasTouchstart:', hasTouchstart);
+      console.log('  - maxTouchPoints:', navigator.maxTouchPoints);
+      console.log('  - userAgent:', navigator.userAgent);
+      console.log('  - final isMobile result:', isMobileResult);
+      
+      setIsMobile(isMobileResult);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -256,7 +266,11 @@ export default function Game() {
 
   // Mouse input handler
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isMobile) return;
+    if (isMobile) {
+      console.log('🖱️ Mouse move ignored - detected as mobile');
+      return;
+    }
+    console.log('🖱️ Mouse move:', e.clientX, e.clientY);
     mousePositionRef.current = {
       x: e.clientX,
       y: e.clientY
@@ -280,6 +294,8 @@ export default function Game() {
 
   // Joystick handler pre mobile
   const handleJoystickMove = useCallback((direction: Vector2) => {
+    // Debug logging pre joystick
+    console.log(`🕹️ Joystick move: x=${direction.x.toFixed(2)}, y=${direction.y.toFixed(2)}`);
     // Uložíme smer joysticku
     joystickInputRef.current = direction;
   }, []);
@@ -312,6 +328,7 @@ export default function Game() {
             y: player.position.y + joystickDirection.y * moveDistance
           };
         }
+        console.log('📱 Using mobile input - joystick direction:', joystickDirection);
       } else {
         // Prepočítaj mouse pozíciu na world koordináty
         const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);
@@ -319,6 +336,7 @@ export default function Game() {
           x: (mousePositionRef.current.x / zoom) + camera.x,
           y: (mousePositionRef.current.y / zoom) + camera.y
         };
+        console.log('🖥️ Using desktop input - mouse pos:', mousePositionRef.current, 'target:', targetPosition);
       }
 
       const input: PlayerInput = {
