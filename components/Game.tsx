@@ -190,10 +190,10 @@ export default function Game() {
         lastInputTime.current = 0;
       }
       
-      // Debug pre player position updates
+      // Keep only essential debug info
       if (socket.id && state.players[socket.id]) {
         const player = state.players[socket.id];
-        console.log('📥 Received gameState - player pos:', player.position, 'speed:', player.baseSpeed);
+        console.log('📥 Player updated - pos:', player.position, 'vel:', { x: player.velocity?.x?.toFixed(1) || 0, y: player.velocity?.y?.toFixed(1) || 0 });
       }
       
       setGameState(state);
@@ -300,9 +300,6 @@ export default function Game() {
 
   // Joystick handler pre mobile
   const handleJoystickMove = useCallback((direction: Vector2) => {
-    // Debug logging pre joystick
-    console.log(`🕹️ Joystick move: x=${direction.x.toFixed(2)}, y=${direction.y.toFixed(2)}`);
-    // Uložíme smer joysticku
     joystickInputRef.current = direction;
   }, []);
 
