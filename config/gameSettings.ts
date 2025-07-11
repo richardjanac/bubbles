@@ -4,7 +4,7 @@
 export const GAME_SETTINGS = {
 
   // 🏁 ZÁKLADNÉ NASTAVENIA
-  MIN_PLAYERS: 5,                     // Minimálny počet hráčov v hre (boti sa pridajú ak je menej)
+  MIN_PLAYERS: 0,                     // Minimálny počet hráčov v hre (0 = žiadni boti)
   WORLD_SIZE: {                       // Veľkosť herného sveta
     WIDTH: 3000,                      // pixely (zväčšené o 50%)
     HEIGHT: 3000                      // pixely (zväčšené o 50%)
