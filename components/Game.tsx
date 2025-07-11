@@ -113,11 +113,14 @@ export default function Game() {
 
     // Detekcia mobilného zariadenia a pomalej siete
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isSlowConnection = navigator.connection && 
-      (navigator.connection.effectiveType === 'slow-2g' || 
-       navigator.connection.effectiveType === '2g' || 
-       navigator.connection.effectiveType === '3g' ||
-       navigator.connection.type === 'cellular');
+    
+    // Safe check pre navigator.connection (experimental API)
+    const connection = (navigator as any).connection;
+    const isSlowConnection = connection && 
+      (connection.effectiveType === 'slow-2g' || 
+       connection.effectiveType === '2g' || 
+       connection.effectiveType === '3g' ||
+       connection.type === 'cellular');
     
     // Použij mobilné optimalizácie pre mobilné zariadenia ALEBO pomalé pripojenie
     const useMobileOptimizations = isMobileDevice || isSlowConnection;
