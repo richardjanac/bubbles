@@ -328,7 +328,7 @@ export default function Game() {
             y: player.position.y
           };
         } else {
-          const moveDistance = 200; // Vzdialenosť kam sa má bublina snažiť ísť
+          const moveDistance = 100; // Znížené z 200 na 100 - menej agresívny pohyb
           targetPosition = {
             x: player.position.x + joystickDirection.x * moveDistance,
             y: player.position.y + joystickDirection.y * moveDistance
