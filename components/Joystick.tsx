@@ -103,7 +103,7 @@ export default function Joystick({ onMove }: JoystickProps) {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (touchIdRef.current !== -1) return;
+      if (touchIdRef.current === null) return;
       
       e.preventDefault();
       e.stopPropagation();
@@ -115,7 +115,7 @@ export default function Joystick({ onMove }: JoystickProps) {
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-      if (touchIdRef.current !== -1) return;
+      if (touchIdRef.current === null) return;
       
       e.preventDefault();
       e.stopPropagation();
