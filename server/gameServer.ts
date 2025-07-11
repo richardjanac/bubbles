@@ -151,7 +151,14 @@ export class GameServer {
       socket.on('updateInput', (input: PlayerInput) => {
         const player = this.gameState.players[socket.id];
         if (player) {
+          console.log(`📥 Server received input from ${player.nickname} (${socket.id}):`, {
+            targetPos: input.position,
+            turbo: input.turbo,
+            playerPos: player.position
+          });
           this.updatePlayerInput(player, input);
+        } else {
+          console.warn(`⚠️ Received input from unknown player: ${socket.id}`);
         }
       });
 
@@ -362,6 +369,13 @@ export class GameServer {
     const dy = input.position.y - player.position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
+    console.log(`🎯 Processing input for ${player.nickname}:`, {
+      from: player.position,
+      to: input.position,
+      distance: distance.toFixed(2),
+      turbo: input.turbo
+    });
+    
     // Uložíme turbo stav do player objektu
     (player as any).turboActive = input.turbo;
     
@@ -378,8 +392,15 @@ export class GameServer {
         x: dirX * speed,
         y: dirY * speed
       };
+      
+      console.log(`⚡ Set velocity for ${player.nickname}:`, {
+        velocity: player.velocity,
+        speed: speed.toFixed(2),
+        direction: { x: dirX.toFixed(3), y: dirY.toFixed(3) }
+      });
     } else {
       player.velocity = { x: 0, y: 0 };
+      console.log(`🛑 Set zero velocity for ${player.nickname} (distance = 0)`);
     }
   }
 
