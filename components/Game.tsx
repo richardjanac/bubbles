@@ -307,21 +307,24 @@ export default function Game() {
         // Pre joystick používame smer na výpočet cieľovej pozície
         const joystickDirection = joystickInputRef.current;
         
-        
-        // Ak je joystick v pokoji (0,0), postavi target na aktuálnu pozíciu hráča
+        // Ak je joystick v pokoji (0,0), okamžite zastav bublinu
         if (Math.abs(joystickDirection.x) < 0.01 && Math.abs(joystickDirection.y) < 0.01) {
           targetPosition = {
             x: player.position.x,
             y: player.position.y
           };
-          
         } else {
-          const moveDistance = 100; // Znížené z 200 na 100 - menej agresívny pohyb
-          targetPosition = {
-            x: player.position.x + joystickDirection.x * moveDistance,
-            y: player.position.y + joystickDirection.y * moveDistance
-          };
+          // Normalizuj smer joysticku - vzdialenosť od stredu je irelevantná
+          const magnitude = Math.sqrt(joystickDirection.x * joystickDirection.x + joystickDirection.y * joystickDirection.y);
+          const normalizedX = magnitude > 0 ? joystickDirection.x / magnitude : 0;
+          const normalizedY = magnitude > 0 ? joystickDirection.y / magnitude : 0;
           
+          // Konštantná vzdialenosť pre target pozíciu
+          const moveDistance = 300; // Zvýšené pre lepšiu odozvu
+          targetPosition = {
+            x: player.position.x + normalizedX * moveDistance,
+            y: player.position.y + normalizedY * moveDistance
+          };
         }
       } else {
         // Prepočítaj mouse pozíciu na world koordináty
@@ -346,7 +349,7 @@ export default function Game() {
     };
 
     // Adaptívne input frequency
-    const inputFrequency = isMobile ? (1000 / 15) : (1000 / 20); // Mobile: 15fps, Desktop: 20fps
+    const inputFrequency = isMobile ? (1000 / 30) : (1000 / 20); // Mobile: 30fps (z 15), Desktop: 20fps
     
     const interval = setInterval(updateInput, inputFrequency);
     
@@ -605,11 +608,6 @@ export default function Game() {
           // Použij solid farbu namiesto gradientu pre výkonnosť
           const colorIndex = Math.min(level - 1, levelColors.length - 1);
           const selectedColor = levelColors[colorIndex];
-          
-          // Debug log pre prvý kruh
-          if (level === player.level) {
-            console.log(`🌈 Level ${level}: Using solid color ${selectedColor} (index: ${colorIndex})`);
-          }
           
           ctx.strokeStyle = selectedColor;
           ctx.lineWidth = ringThickness;

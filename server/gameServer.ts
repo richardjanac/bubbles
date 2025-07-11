@@ -363,7 +363,7 @@ export class GameServer {
     // Uložíme turbo stav do player objektu
     (player as any).turboActive = input.turbo;
     
-    if (distance > 0) {
+    if (distance > 5) { // Zmena: iba ak je cieľ dostatočne ďaleko (5px threshold)
       // Normalizuj vektor smeru
       const dirX = dx / distance;
       const dirY = dy / distance;
@@ -376,8 +376,8 @@ export class GameServer {
         x: dirX * speed,
         y: dirY * speed
       };
-      
     } else {
+      // Ak je hráč blízko cieľa, okamžite zastav
       player.velocity = { x: 0, y: 0 };
     }
   }
