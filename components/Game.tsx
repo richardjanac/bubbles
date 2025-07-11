@@ -169,10 +169,15 @@ export default function Game() {
       const now = Date.now();
       lastServerResponse.current = now;
       
-      // Calculate input latency if we have last input time
+      // Calculate input latency - iba ak je to recent
       if (lastInputTime.current > 0) {
         const inputLag = now - lastInputTime.current;
-        setInputLatency(inputLag);
+        // Zobraz input latency iba ak je rozumná (< 10 sekúnd)
+        if (inputLag < 10000) {
+          setInputLatency(inputLag);
+        }
+        // Reset input time pre nové meranie
+        lastInputTime.current = 0;
       }
       
       setGameState(state);
@@ -321,14 +326,30 @@ export default function Game() {
         turbo: turboActive
       };
 
-      lastInputTime.current = Date.now();
+      // Nastav input time len ak zatiaľ nie je nastavený (čaká na odpoveď)
+      if (lastInputTime.current === 0) {
+        lastInputTime.current = Date.now();
+      }
       socketRef.current?.emit('updateInput', input);
     };
 
     // Adaptívne input frequency
     const inputFrequency = isMobile ? (1000 / 15) : (1000 / 20); // Mobile: 15fps, Desktop: 20fps
     const interval = setInterval(updateInput, inputFrequency);
-    return () => clearInterval(interval);
+    
+    // Cleanup pre input latency timeout - ak server neodpovedá viac ako 5s
+    const inputTimeoutCleanup = setInterval(() => {
+      if (lastInputTime.current > 0 && Date.now() - lastInputTime.current > 5000) {
+        console.warn('🚨 Input timeout - server neodpovedá, resetujem meranie');
+        lastInputTime.current = 0;
+        setInputLatency(0);
+      }
+    }, 1000);
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(inputTimeoutCleanup);
+    };
   }, [isConnected, gameState, playerId, isMobile, turboActive]);
 
   // Event listeners
