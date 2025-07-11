@@ -37,16 +37,8 @@ export default function Game() {
   const fpsRef = useRef<{ frames: number; lastTime: number }>({ frames: 0, lastTime: Date.now() });
   const currentFpsRef = useRef<number>(0);
   // Particle system pre bubble pop efekt
-  const [particles, setParticles] = useState<Array<{
-    id: string;
-    position: Vector2;
-    velocity: Vector2;
-    size: number;
-    opacity: number;
-    color: string;
-    life: number;
-    maxLife: number;
-  }>>([]);
+  // Particles state odstránený - efekt vypnutý pre výkonnosť
+  // const [particles, setParticles] = useState<Array<...>>([]);
   // Pridané pre frame limiting
   const lastFrameTimeRef = useRef<number>(0);
   const targetFPS = 60; // Maximálne FPS pre plynulosť
@@ -453,10 +445,8 @@ export default function Game() {
         drawPlayerBubble(ctx, p, camera, zoom);
       });
 
-      // Vykresli particles pre bubble pop efekt (limit pre mobile)
-      if (!isMobile || particles.length < 30) { // Limit 30 particles na mobile
-        drawParticles(ctx, camera, zoom);
-      }
+      // Particle efekt vypnutý pre lepšiu výkonnosť
+      // drawParticles(ctx, camera, zoom);
 
       // UI overlay
       drawUI(ctx, player);
@@ -809,111 +799,25 @@ export default function Game() {
   drawUI.lastUpdate = 0;
   drawUI.topPlayers = [] as PlayerBubble[];
 
-  // Funkcia pre vytvorenie bubble pop efektu
+  // Bubble pop efekt vypnutý pre lepšiu výkonnosť
   const createBubblePopEffect = useCallback((position: Vector2, radius: number, color: string) => {
-    const newParticles: Array<{
-      id: string;
-      position: Vector2;
-      velocity: Vector2;
-      size: number;
-      opacity: number;
-      color: string;
-      life: number;
-      maxLife: number;
-    }> = [];
-    // Menej particles pre mobile zariadenia
-    const maxParticles = isMobile ? 10 : 20;
-    const minParticles = isMobile ? 4 : 8;
-    const particleCount = Math.min(maxParticles, Math.max(minParticles, radius / 3)); // Mobile: 4-10, Desktop: 8-20
-    
-    for (let i = 0; i < particleCount; i++) {
-      const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
-      const speed = 50 + Math.random() * 100; // Rýchlosť častíc
-      const size = 3 + Math.random() * 6; // Veľkosť častíc
-      
-      newParticles.push({
-        id: `particle_${Date.now()}_${i}`,
-        position: { ...position },
-        velocity: {
-          x: Math.cos(angle) * speed,
-          y: Math.sin(angle) * speed
-        },
-        size: size,
-        opacity: 1,
-        color: color || '#FFFFFF',
-        life: 0,
-        maxLife: 1000 + Math.random() * 500 // 1-1.5 sekundy životnosť
-      });
-    }
-    
-    setParticles(prev => [...prev, ...newParticles]);
+    // Efekt vypnutý - žiadne particles sa nevytvárajú
+    return;
   }, []);
 
-  // Update particles
-  useEffect(() => {
-    if (particles.length === 0) return;
-    
-    const updateParticles = () => {
-      setParticles(prev => {
-        const now = Date.now();
-        return prev.map(particle => {
-          const deltaTime = 16; // ~60fps
-          
-          // Update pozícia
-          particle.position.x += particle.velocity.x * (deltaTime / 1000);
-          particle.position.y += particle.velocity.y * (deltaTime / 1000);
-          
-          // Update life
-          particle.life += deltaTime;
-          
-          // Fade out
-          particle.opacity = Math.max(0, 1 - (particle.life / particle.maxLife));
-          
-          // Gravitácia
-          particle.velocity.y += 30 * (deltaTime / 1000); // Gravitácia
-          
-          // Friction
-          particle.velocity.x *= 0.98;
-          particle.velocity.y *= 0.98;
-          
-          return particle;
-        }).filter(particle => particle.life < particle.maxLife);
-      });
-    };
-    
-    const interval = setInterval(updateParticles, 16);
-    return () => clearInterval(interval);
-  }, [particles.length]);
+  // Particle update vypnutý - žiadne particles sa nepoužívajú
+  // useEffect(() => {
+  //   if (particles.length === 0) return;
+  //   const updateParticles = () => { ... };
+  //   const interval = setInterval(updateParticles, 16);
+  //   return () => clearInterval(interval);
+  // }, [particles.length]);
 
-  // Vykresli particles
+  // Particle rendering vypnutý pre lepšiu výkonnosť
   const drawParticles = useCallback((ctx: CanvasRenderingContext2D, camera: Vector2, zoom: number) => {
-    particles.forEach(particle => {
-      const screenX = particle.position.x - camera.x;
-      const screenY = particle.position.y - camera.y;
-      
-      // Skip ak je mimo obrazovky
-      if (screenX < -50 || screenX > window.innerWidth / zoom + 50 ||
-          screenY < -50 || screenY > window.innerHeight / zoom + 50) {
-        return;
-      }
-      
-      ctx.save();
-      ctx.globalAlpha = particle.opacity;
-      
-      // Solid farby pre particle efekt (OPTIMALIZOVANÉ PRE MOBILE)
-      ctx.fillStyle = `rgba(255, 255, 255, ${particle.opacity * 0.8})`;
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, particle.size, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Okraj particle
-      ctx.strokeStyle = `rgba(255, 255, 255, ${particle.opacity * 0.5})`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      
-      ctx.restore();
-    });
-  }, [particles]);
+    // Žiadne particles sa nevykresľujú
+    return;
+  }, []);
 
   if (!isPlaying) {
     return (
