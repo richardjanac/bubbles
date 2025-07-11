@@ -357,10 +357,8 @@ export default function Game() {
         ).toFixed(2)
       });
 
-      // Nastav input time len ak zatiaľ nie je nastavený (čaká na odpoveď)
-      if (lastInputTime.current === 0) {
-        lastInputTime.current = Date.now();
-      }
+      // Vždy pošli input - neblokuj na základe server response
+      lastInputTime.current = Date.now();
       socketRef.current?.emit('updateInput', input);
     };
 
