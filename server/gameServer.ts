@@ -95,6 +95,15 @@ export class GameServer {
       upgradeTimeout: 10000,   // Štandardný upgrade timeout
       allowEIO3: true,         // Backward compatibility
       maxHttpBufferSize: 1e6,  // 1MB buffer
+      // Optimalizácie pre mobilné siete
+      perMessageDeflate: {
+        threshold: 1024, // Kompresuj správy väčšie ako 1KB
+        zlibDeflateOptions: {
+          level: 6 // Stredná úroveň kompresie
+        }
+      },
+      httpCompression: true, // HTTP kompresia pre polling
+      allowUpgrades: true,   // Povoľ upgrade z polling na websocket
     });
 
     // Inicializuj mesačný leaderboard
@@ -923,10 +932,47 @@ export class GameServer {
   }
 
   private serializeGameState(): GameState {
-    // Už máme objekty, nie Map, takže len vrátime gameState
+    // Optimalizovaná serializácia pre menšie payloady
+    const optimizedPlayers: any = {};
+    
+    Object.entries(this.gameState.players).forEach(([id, player]) => {
+      optimizedPlayers[id] = {
+        id: player.id,
+        nickname: player.nickname,
+        score: player.score,
+        level: player.level,
+        position: {
+          x: Math.round(player.position.x),
+          y: Math.round(player.position.y)
+        },
+        velocity: {
+          x: Math.round(player.velocity.x),
+          y: Math.round(player.velocity.y)
+        },
+        radius: Math.round(player.radius!),
+        baseSpeed: Math.round(player.baseSpeed),
+        isBot: player.isBot,
+        isInvulnerable: player.isInvulnerable
+        // Vynechávame spawnTime - klient ho nepotrebuje
+      };
+    });
+    
+    const optimizedNpcBubbles: any = {};
+    
+    Object.entries(this.gameState.npcBubbles).forEach(([id, npc]) => {
+      optimizedNpcBubbles[id] = {
+        id: npc.id,
+        score: npc.score,
+        position: {
+          x: Math.round(npc.position.x),
+          y: Math.round(npc.position.y)
+        }
+      };
+    });
+    
     return {
-      players: this.gameState.players,
-      npcBubbles: this.gameState.npcBubbles,
+      players: optimizedPlayers,
+      npcBubbles: optimizedNpcBubbles,
       worldSize: this.gameState.worldSize
     };
   }

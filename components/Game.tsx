@@ -139,12 +139,18 @@ export default function Game() {
     socketInitialized.current = true;
 
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001', {
-      transports: ['websocket'], // Použij iba WebSocket pre rýchle spojenie
-      upgrade: false, // Neupgraduj z polling
+      transports: isMobile ? ['polling', 'websocket'] : ['websocket', 'polling'], // Mobile začne s polling pre stabilitu
+      upgrade: true, // Povoľ upgrade z polling na websocket
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 3,
-      timeout: 5000, // Znížený timeout pre rýchlejšie spojenie
+      timeout: isMobile ? 10000 : 5000, // Dlhší timeout pre mobilné siete
+      // Optimalizácie pre mobilné siete
+      perMessageDeflate: true, // Kompresia správ
+      forceBase64: false, // Použij binary transport kde možné
+      // Dodatočné optimalizácie pre mobilné siete
+      closeOnBeforeunload: false, // Stabilnejšie pre mobile browsery
+      withCredentials: false, // Zníženie overhead
     });
     socketRef.current = socket;
 
@@ -222,7 +228,7 @@ export default function Game() {
       socketRef.current = null;
       socketInitialized.current = false; // Reset flag pri unmount
     };
-  }, [isPlaying, nickname, reconnectTrigger]); // Pridaný reconnectTrigger
+  }, [isPlaying, nickname, reconnectTrigger, isMobile]); // Pridaný reconnectTrigger
 
   // Načítaj leaderboard len raz pri mount
   useEffect(() => {
@@ -394,10 +400,24 @@ export default function Game() {
     
     // Zjednodušené nastavenie canvasu bez DPR scaling
     const setupCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const dpr = window.devicePixelRatio || 1; // Device pixel ratio pre ostré zobrazenie
+      
+      // Nastav skutočnú veľkosť canvasu s DPR
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      
+      // Nastav CSS veľkosť
       canvas.style.width = '100vw';
       canvas.style.height = '100vh';
+      
+      // Škáluj kontext pre DPR
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.scale(dpr, dpr);
+        // Nastav image smoothing pre lepšiu kvalitu
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+      }
     };
     
     setupCanvas();
@@ -436,10 +456,11 @@ export default function Game() {
       }
 
       // Clear canvas s celou veľkosťou
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const dpr = window.devicePixelRatio || 1;
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
       
       ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
-      ctx.scale(zoom, zoom);
+      ctx.scale(dpr * zoom, dpr * zoom); // Aplikuj DPR aj zoom
 
       // Tmavo modré pozadie ako na obrázku
       ctx.fillStyle = '#07355a';
