@@ -380,15 +380,20 @@ export default function Game() {
     
     window.addEventListener('resize', handleResize);
 
+    // Mobile FPS optimalizácia - target 30fps pre iPhone X
+    const targetFPS = isMobile ? 30 : 60;
+    const frameInterval = 1000 / targetFPS;
+    let lastFrameTime = 0;
+
     const render = (timestamp: number = 0) => {
       const renderStart = performance.now();
       
-      // Dočasne odstránené frame limiting pre debugging blikania
-      // if (timestamp - lastFrameTimeRef.current < frameInterval) {
-      //   animationFrameRef.current = requestAnimationFrame(render);
-      //   return;
-      // }
-      // lastFrameTimeRef.current = timestamp;
+      // FPS throttling pre mobile zariadenia
+      if (isMobile && timestamp - lastFrameTime < frameInterval) {
+        animationFrameRef.current = requestAnimationFrame(render);
+        return;
+      }
+      lastFrameTime = timestamp;
 
       const zoom = isMobile ? 0.5 : 1.0; // 67% väčší zoom pre mobily
 
@@ -448,8 +453,10 @@ export default function Game() {
         drawPlayerBubble(ctx, p, camera, zoom);
       });
 
-      // Vykresli particles pre bubble pop efekt
-      drawParticles(ctx, camera, zoom);
+      // Vykresli particles pre bubble pop efekt (limit pre mobile)
+      if (!isMobile || particles.length < 30) { // Limit 30 particles na mobile
+        drawParticles(ctx, camera, zoom);
+      }
 
       // UI overlay
       drawUI(ctx, player);
@@ -545,10 +552,24 @@ export default function Game() {
     ctx.arc(screenX, screenY, player.radius!, 0, Math.PI * 2);
     ctx.fill();
 
-    // Gradient kruhy pre levely - iba ak je level > 1
+    // Solid color kruhy pre levely - iba ak je level > 1 (OPTIMALIZOVANÉ PRE MOBILE)
     if (player.level > 1) {
       const ringThickness = GAME_SETTINGS.RING_THICKNESS + 1; // Trochu hrubšie
       const ringSpacing = GAME_SETTINGS.RING_SPACING;
+      
+      // Dúhové farby pre každý level (solid colors, no gradients)
+      const levelColors = [
+        'rgba(255, 255, 255, 0.9)', // Level 1 - Biela
+        'rgba(255, 0, 0, 0.9)',     // Level 2 - Červená
+        'rgba(255, 165, 0, 0.9)',   // Level 3 - Oranžová
+        'rgba(255, 255, 0, 0.9)',   // Level 4 - Žltá
+        'rgba(0, 255, 0, 0.9)',     // Level 5 - Zelená
+        'rgba(0, 255, 255, 0.9)',   // Level 6 - Cyan
+        'rgba(0, 0, 255, 0.9)',     // Level 7 - Modrá
+        'rgba(128, 0, 128, 0.9)',   // Level 8 - Fialová
+        'rgba(255, 0, 255, 0.9)',   // Level 9 - Magenta
+        'rgba(255, 192, 203, 0.9)'  // Level 10+ - Ružová
+      ];
       
       const maxRings = player.level; // Zobraz všetky level kruhy
       const startLevel = 1; // Začni od level 1
@@ -557,19 +578,9 @@ export default function Game() {
         const ringRadius = player.radius! - (player.level - level) * (ringThickness + ringSpacing);
         
         if (ringRadius > 8) {
-          // Vytvor gradient pre každý kruh od bielej do červenej
-          const gradient = ctx.createLinearGradient(
-            screenX - ringRadius, screenY - ringRadius,
-            screenX + ringRadius, screenY + ringRadius
-          );
-          
-          // Gradient od bielej k červenej s priehľadnosťou
-          const opacity = 0.9; // Pevná opacity pre všetky kruhy
-          gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity})`); // Biela
-          gradient.addColorStop(0.5, `rgba(255, 128, 128, ${opacity})`); // Svetlo červená
-          gradient.addColorStop(1, `rgba(255, 0, 0, ${opacity})`); // Červená
-          
-          ctx.strokeStyle = gradient;
+          // Použij solid farbu namiesto gradientu pre výkonnosť
+          const colorIndex = Math.min(level - 1, levelColors.length - 1);
+          ctx.strokeStyle = levelColors[colorIndex];
           ctx.lineWidth = ringThickness;
           ctx.beginPath();
           ctx.arc(screenX, screenY, ringRadius, 0, Math.PI * 2);
@@ -810,7 +821,10 @@ export default function Game() {
       life: number;
       maxLife: number;
     }> = [];
-    const particleCount = Math.min(20, Math.max(8, radius / 3)); // 8-20 častíc podľa veľkosti bubliny
+    // Menej particles pre mobile zariadenia
+    const maxParticles = isMobile ? 10 : 20;
+    const minParticles = isMobile ? 4 : 8;
+    const particleCount = Math.min(maxParticles, Math.max(minParticles, radius / 3)); // Mobile: 4-10, Desktop: 8-20
     
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
@@ -886,19 +900,14 @@ export default function Game() {
       ctx.save();
       ctx.globalAlpha = particle.opacity;
       
-      // Gradient particle pre bubble efekt
-      const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, particle.size);
-      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-      gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
-      gradient.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
-      
-      ctx.fillStyle = gradient;
+      // Solid farby pre particle efekt (OPTIMALIZOVANÉ PRE MOBILE)
+      ctx.fillStyle = `rgba(255, 255, 255, ${particle.opacity * 0.8})`;
       ctx.beginPath();
       ctx.arc(screenX, screenY, particle.size, 0, Math.PI * 2);
       ctx.fill();
       
       // Okraj particle
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.strokeStyle = `rgba(255, 255, 255, ${particle.opacity * 0.5})`;
       ctx.lineWidth = 1;
       ctx.stroke();
       
