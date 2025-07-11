@@ -88,17 +88,13 @@ export class GameServer {
         credentials: true,
         allowedHeaders: ['Content-Type']
       },
-      // AGRESÍVNE optimalizácie pre Railway WebSocket problems
-      pingTimeout: 5000,       // Kratší timeout
-      pingInterval: 2000,      // Častejšie ping
-      upgradeTimeout: 5000,    // Rýchlejší upgrade timeout
-      transports: ['polling', 'websocket'], // Polling FIRST (obídeme WebSocket issue)
+      // Socket.IO optimalizácie pre rýchle spojenie
+      transports: ['websocket', 'polling'], // WebSocket FIRST pre rýchle spojenie
+      pingTimeout: 60000,      // Štandardný timeout
+      pingInterval: 25000,     // Štandardný interval
+      upgradeTimeout: 10000,   // Štandardný upgrade timeout
       allowEIO3: true,         // Backward compatibility
-      // Menšie buffery pre nižšiu latency
-      maxHttpBufferSize: 1e6,
-      // Agresívny cleanup
-      destroyUpgrade: false,
-      destroyUpgradeTimeout: 1000
+      maxHttpBufferSize: 1e6,  // 1MB buffer
     });
 
     // Inicializuj mesačný leaderboard
@@ -150,16 +146,11 @@ export class GameServer {
 
       socket.on('updateInput', (input: PlayerInput) => {
         const player = this.gameState.players[socket.id];
-        if (player) {
-          console.log(`📥 Server received input from ${player.nickname} (${socket.id}):`, {
-            targetPos: input.position,
-            turbo: input.turbo,
-            playerPos: player.position
-          });
-          this.updatePlayerInput(player, input);
-        } else {
-          console.warn(`⚠️ Received input from unknown player: ${socket.id}`);
-        }
+        if (!player || !input || !input.position) return;
+        
+        // Odstránené debug logy pre produkciu
+        
+        this.updatePlayerInput(player, input);
       });
 
       socket.on('getMonthlyLeaderboard', (limit?: number) => {
@@ -369,13 +360,6 @@ export class GameServer {
     const dy = input.position.y - player.position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    console.log(`🎯 Processing input for ${player.nickname}:`, {
-      from: player.position,
-      to: input.position,
-      distance: distance.toFixed(2),
-      turbo: input.turbo
-    });
-    
     // Uložíme turbo stav do player objektu
     (player as any).turboActive = input.turbo;
     
@@ -393,14 +377,8 @@ export class GameServer {
         y: dirY * speed
       };
       
-      console.log(`⚡ Set velocity for ${player.nickname}:`, {
-        velocity: player.velocity,
-        speed: speed.toFixed(2),
-        direction: { x: dirX.toFixed(3), y: dirY.toFixed(3) }
-      });
     } else {
       player.velocity = { x: 0, y: 0 };
-      console.log(`🛑 Set zero velocity for ${player.nickname} (distance = 0)`);
     }
   }
 

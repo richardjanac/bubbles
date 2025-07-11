@@ -19,8 +19,19 @@ const Joystick = dynamic(() => import('./Joystick'));
 const TurboButton = dynamic(() => import('./TurboButton'));
 
 export default function Game() {
+  // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const socketInitialized = useRef(false); // Ochrana proti dvojitému mountovaniu
+  const mousePositionRef = useRef<Vector2>({ x: 0, y: 0 });
+  const joystickInputRef = useRef<Vector2>({ x: 0, y: 0 });
+  const animationFrameRef = useRef<number | null>(null);
+  const fpsRef = useRef({ frames: 0, lastTime: Date.now() });
+  const currentFpsRef = useRef(0);
+  const lastServerResponse = useRef(Date.now());
+  const lastInputTime = useRef(0);
+  
+  // State
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [nickname, setNickname] = useState('');
   const [nicknameInput, setNicknameInput] = useState('');
@@ -30,12 +41,7 @@ export default function Game() {
   const [isMobile, setIsMobile] = useState(false);
   const [turboActive, setTurboActive] = useState(false);
   const [isDead, setIsDead] = useState(false);
-  const [reconnectTrigger, setReconnectTrigger] = useState(0); // Nový trigger pre reconnect
-  const animationFrameRef = useRef<number | undefined>(undefined);
-  const mousePositionRef = useRef<Vector2>({ x: 0, y: 0 });
-  const joystickInputRef = useRef<Vector2>({ x: 0, y: 0 }); // Smer joysticku (-1 až 1)
-  const fpsRef = useRef<{ frames: number; lastTime: number }>({ frames: 0, lastTime: Date.now() });
-  const currentFpsRef = useRef<number>(0);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
   // Particle system pre bubble pop efekt
   // Particles state odstránený - efekt vypnutý pre výkonnosť
   // const [particles, setParticles] = useState<Array<...>>([]);
@@ -57,17 +63,27 @@ export default function Game() {
   // Detekcia mobilného zariadenia
   useEffect(() => {
     const checkMobile = () => {
+      // Komplexná detekcia mobilných zariadení
       const hasTouchstart = 'ontouchstart' in window;
       const hasMaxTouchPoints = navigator.maxTouchPoints > 0;
-      const isMobileResult = hasTouchstart || hasMaxTouchPoints;
       
-      console.log('🔍 Mobile detection:');
-      console.log('  - hasTouchstart:', hasTouchstart);
-      console.log('  - maxTouchPoints:', navigator.maxTouchPoints);
-      console.log('  - userAgent:', navigator.userAgent);
-      console.log('  - final isMobile result:', isMobileResult);
+      // User agent detekcia pre istotu
+      const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i;
+      const isMobileUserAgent = mobileRegex.test(navigator.userAgent);
       
-      setIsMobile(isMobileResult);
+      // Detekcia malej obrazovky (typicky mobily)
+      const isSmallScreen = window.innerWidth <= 768;
+      
+      // Detekcia orientácie (mobily majú orientation API)
+      const hasOrientation = 'orientation' in window || 'orientation' in screen;
+      
+      // Finálne rozhodnutie - ak má touch ALEBO je to mobilný user agent
+      const isMobileResult = (hasTouchstart || hasMaxTouchPoints) && isMobileUserAgent;
+      
+      // Vylúč Windows zariadenia s touch (Surface, dotykové notebooky)
+      const isWindowsWithTouch = hasMaxTouchPoints && navigator.userAgent.includes('Windows');
+      
+      setIsMobile(isMobileResult && !isWindowsWithTouch);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -94,9 +110,6 @@ export default function Game() {
   const [connectionLatency, setConnectionLatency] = useState<number>(0);
   const [inputLatency, setInputLatency] = useState<number>(0);
   const [renderLatency, setRenderLatency] = useState<number>(0);
-  const lastInputTime = useRef<number>(0);
-  const lastServerResponse = useRef<number>(0);
-  const lastRenderTime = useRef<number>(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
 
   // Connection latency test
@@ -120,42 +133,22 @@ export default function Game() {
   // Socket.IO pripojenie
   useEffect(() => {
     if (!isPlaying || !nickname) return;
-
-    // Detekcia mobilného zariadenia a pomalej siete
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // Safe check pre navigator.connection (experimental API)
-    const connection = (navigator as any).connection;
-    const isSlowConnection = connection && 
-      (connection.effectiveType === 'slow-2g' || 
-       connection.effectiveType === '2g' || 
-       connection.effectiveType === '3g' ||
-       connection.type === 'cellular');
-    
-    // Použij mobilné optimalizácie pre mobilné zariadenia ALEBO pomalé pripojenie
-    const useMobileOptimizations = isMobileDevice || isSlowConnection;
+    // Ochrana proti dvojitému mountovaniu v React Strict Mode
+    if (socketInitialized.current) return;
+    socketInitialized.current = true;
 
-          const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
-        forceNew: true,
-        timeout: useMobileOptimizations ? 10000 : 3000, // Ešte dlhší timeout pre mobile
-        transports: useMobileOptimizations ? ['polling'] : ['polling', 'websocket'], // Len polling pre mobile
-        upgrade: !useMobileOptimizations, // Zakáž WebSocket upgrade pre mobile
-        rememberUpgrade: false,
-        autoConnect: true,
-        reconnection: true,
-        reconnectionDelay: useMobileOptimizations ? 3000 : 1000, // Dlhšie delays
-        reconnectionAttempts: useMobileOptimizations ? 2 : 3 // Menej pokusov pre mobile
-      });
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001', {
+      transports: ['websocket'], // Použij iba WebSocket pre rýchle spojenie
+      upgrade: false, // Neupgraduj z polling
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 3,
+      timeout: 5000, // Znížený timeout pre rýchlejšie spojenie
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('🟢 Socket.IO connected');
-      console.log('📱 Mobile device:', isMobileDevice);
-      console.log('📶 Slow connection:', isSlowConnection);  
-      console.log('⚡ Using mobile optimizations:', useMobileOptimizations);
-      console.log('🚌 Transport:', socket.io.engine.transport.name);
-      console.log('🔗 Socket ID:', socket.id);
-      
       setIsConnected(true);
       setConnectionStatus('connected');
       socket.emit('join', nickname);
@@ -170,7 +163,6 @@ export default function Game() {
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('🟡 Socket.IO disconnected, reason:', reason);
       setIsConnected(false);
       setConnectionStatus('disconnected');
     });
@@ -190,12 +182,6 @@ export default function Game() {
         lastInputTime.current = 0;
       }
       
-      // Keep only essential debug info
-      if (socket.id && state.players[socket.id]) {
-        const player = state.players[socket.id];
-        console.log('📥 Player updated - pos:', player.position, 'vel:', { x: player.velocity?.x?.toFixed(1) || 0, y: player.velocity?.y?.toFixed(1) || 0 });
-      }
-      
       setGameState(state);
       // Nastav playerId ak ešte nie je nastavené
       if (!playerId && socket.id && state.players[socket.id]) {
@@ -207,9 +193,8 @@ export default function Game() {
       }
     });
 
-    // Latency monitoring - adaptívne pre mobile
-    const pingFrequency = useMobileOptimizations ? 5000 : 2000; // Mobile: každých 5s, Desktop: každé 2s
-    const latencyInterval = setInterval(testLatency, pingFrequency);
+    // Latency monitoring
+    const latencyInterval = setInterval(testLatency, 2000);
 
     socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
       setMonthlyLeaderboard(leaderboard);
@@ -234,49 +219,24 @@ export default function Game() {
     return () => {
       socket.disconnect();
       clearInterval(latencyInterval);
+      socketRef.current = null;
+      socketInitialized.current = false; // Reset flag pri unmount
     };
   }, [isPlaying, nickname, reconnectTrigger]); // Pridaný reconnectTrigger
 
-  // Socket pre leaderboard v hlavnom menu
+  // Načítaj leaderboard len raz pri mount
   useEffect(() => {
-    if (isPlaying) return; // Nepripájaj sa ak už hráme
-    
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'https://web-production-6a000.up.railway.app', {
-      transports: ['polling', 'websocket'],
-      upgrade: true,
-      timeout: 3000
-    });
-    
-    socket.on('connect', () => {
-      // Požiadaj o mesačný leaderboard pre hlavné menu
-      socket.emit('getMonthlyLeaderboard');
-      socket.emit('getLeaderboardStats');
-    });
-    
-    socket.on('gameState', (state: GameState) => {
-      setGameState(state);
-    });
-
-    socket.on('monthlyLeaderboard', (leaderboard: Array<{id: string, nickname: string, level: number, score: number}>) => {
-      setMonthlyLeaderboard(leaderboard);
-    });
-
-    socket.on('leaderboardStats', (stats: {totalPlayers: number, topLevel: number, topScore: number}) => {
-      setLeaderboardStats(stats);
-    });
-    
-    return () => {
-      socket.disconnect();
-    };
+    if (!isPlaying && socketRef.current) {
+      socketRef.current.emit('getMonthlyLeaderboard');
+      socketRef.current.emit('getLeaderboardStats');
+    }
   }, [isPlaying]);
 
   // Mouse input handler
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isMobile) {
-      console.log('🖱️ Mouse move ignored - detected as mobile');
       return;
     }
-    console.log('🖱️ Mouse move:', e.clientX, e.clientY);
     mousePositionRef.current = {
       x: e.clientX,
       y: e.clientY
@@ -303,13 +263,42 @@ export default function Game() {
     joystickInputRef.current = direction;
   }, []);
 
+  // Ref pre aktuálny game state - aby sme nemuseli restartovať input loop
+  const gameStateRef = useRef<GameState | null>(null);
+  
+  // Aktualizuj gameStateRef pri každej zmene
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   // Input update loop
   useEffect(() => {
-    if (!socketRef.current || !isConnected || !gameState || !playerId) return;
+    
+    if (!socketRef.current) {
+      return;
+    }
+    if (!isConnected) {
+      return;
+    }
+    if (!gameStateRef.current) {
+      return;
+    }
+    if (!playerId) {
+      return;
+    }
+    
 
     const updateInput = () => {
-      const player = gameState.players[playerId];
-      if (!player) return;
+      // Použij aktuálny gameState z ref
+      const currentGameState = gameStateRef.current;
+      if (!currentGameState) {
+        return;
+      }
+      
+      const player = currentGameState.players[playerId];
+      if (!player) {
+        return;
+      }
 
       let targetPosition: Vector2;
       const zoom = isMobile ? 0.5 : 1.0; // 67% väčší zoom pre mobily
@@ -318,20 +307,22 @@ export default function Game() {
         // Pre joystick používame smer na výpočet cieľovej pozície
         const joystickDirection = joystickInputRef.current;
         
+        
         // Ak je joystick v pokoji (0,0), postavi target na aktuálnu pozíciu hráča
         if (Math.abs(joystickDirection.x) < 0.01 && Math.abs(joystickDirection.y) < 0.01) {
           targetPosition = {
             x: player.position.x,
             y: player.position.y
           };
+          
         } else {
           const moveDistance = 100; // Znížené z 200 na 100 - menej agresívny pohyb
           targetPosition = {
             x: player.position.x + joystickDirection.x * moveDistance,
             y: player.position.y + joystickDirection.y * moveDistance
           };
+          
         }
-        console.log('📱 Using mobile input - joystick direction:', joystickDirection);
       } else {
         // Prepočítaj mouse pozíciu na world koordináty
         const camera = calculateCamera(player.position, window.innerWidth, window.innerHeight, zoom);
@@ -339,7 +330,7 @@ export default function Game() {
           x: (mousePositionRef.current.x / zoom) + camera.x,
           y: (mousePositionRef.current.y / zoom) + camera.y
         };
-        console.log('🖥️ Using desktop input - mouse pos:', mousePositionRef.current, 'target:', targetPosition);
+        
       }
 
       const input: PlayerInput = {
@@ -347,15 +338,7 @@ export default function Game() {
         turbo: turboActive
       };
 
-      // Debug log pre input
-      console.log('📤 Sending input:', {
-        playerPos: player.position,
-        targetPos: targetPosition,
-        distance: Math.sqrt(
-          Math.pow(targetPosition.x - player.position.x, 2) + 
-          Math.pow(targetPosition.y - player.position.y, 2)
-        ).toFixed(2)
-      });
+      
 
       // Vždy pošli input - neblokuj na základe server response
       lastInputTime.current = Date.now();
@@ -364,22 +347,24 @@ export default function Game() {
 
     // Adaptívne input frequency
     const inputFrequency = isMobile ? (1000 / 15) : (1000 / 20); // Mobile: 15fps, Desktop: 20fps
+    
     const interval = setInterval(updateInput, inputFrequency);
     
     // Cleanup pre input latency timeout - ak server neodpovedá viac ako 5s
     const inputTimeoutCleanup = setInterval(() => {
       if (lastInputTime.current > 0 && Date.now() - lastInputTime.current > 5000) {
-        console.warn('🚨 Input timeout - server neodpovedá, resetujem meranie');
+        
         lastInputTime.current = 0;
         setInputLatency(0);
       }
     }, 1000);
     
     return () => {
+      
       clearInterval(interval);
       clearInterval(inputTimeoutCleanup);
     };
-  }, [isConnected, gameState, playerId, isMobile, turboActive]);
+  }, [isConnected, playerId, isMobile, turboActive]); 
 
   // Event listeners
   useEffect(() => {
