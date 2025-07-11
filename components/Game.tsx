@@ -145,9 +145,6 @@ export default function Game() {
       reconnectionDelay: 1000,
       reconnectionAttempts: 3,
       timeout: isMobile ? 10000 : 5000, // Dlhší timeout pre mobilné siete
-      // Optimalizácie pre mobilné siete
-      perMessageDeflate: true, // Kompresia správ
-      forceBase64: false, // Použij binary transport kde možné
       // Dodatočné optimalizácie pre mobilné siete
       closeOnBeforeunload: false, // Stabilnejšie pre mobile browsery
       withCredentials: false, // Zníženie overhead
