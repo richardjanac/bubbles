@@ -570,7 +570,14 @@ export default function Game() {
         if (ringRadius > 8) {
           // Použij solid farbu namiesto gradientu pre výkonnosť
           const colorIndex = Math.min(level - 1, levelColors.length - 1);
-          ctx.strokeStyle = levelColors[colorIndex];
+          const selectedColor = levelColors[colorIndex];
+          
+          // Debug log pre prvý kruh
+          if (level === player.level) {
+            console.log(`🌈 Level ${level}: Using solid color ${selectedColor} (index: ${colorIndex})`);
+          }
+          
+          ctx.strokeStyle = selectedColor;
           ctx.lineWidth = ringThickness;
           ctx.beginPath();
           ctx.arc(screenX, screenY, ringRadius, 0, Math.PI * 2);
