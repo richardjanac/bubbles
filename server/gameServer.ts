@@ -382,6 +382,8 @@ export class GameServer {
     const dy = input.position.y - player.position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
+    console.log(`🎯 ${player.nickname}: Input pozícia ${Math.round(input.position.x)},${Math.round(input.position.y)} | Vzdialenosť: ${Math.round(distance)}`);
+    
     // Uložíme turbo stav do player objektu
     (player as any).turboActive = input.turbo;
     
@@ -398,9 +400,12 @@ export class GameServer {
         x: dirX * speed,
         y: dirY * speed
       };
+      
+      console.log(`🏃 ${player.nickname}: Velocity nastavená na ${Math.round(player.velocity.x)},${Math.round(player.velocity.y)}`);
     } else {
       // Ak je hráč blízko cieľa, okamžite zastav
       player.velocity = { x: 0, y: 0 };
+      console.log(`🛑 ${player.nickname}: Zastavený (blízko cieľa)`);
     }
   }
 
@@ -1105,12 +1110,15 @@ export class GameServer {
           // Desktop hráči dostávajú updaty vždy, mobilní iba občas
           if (!isMobile || shouldUpdateMobile) {
             const fullState = this.serializeGameState(playerId);
-            const deltaState = this.createDeltaState(playerId, fullState);
+            // DOČASNE - vždy posielaj full state
+            this.io.to(playerId).emit('gameState', { full: true, state: fullState });
             
-            // Pošli delta state ak existuje, inak nepošli nič
-            if (deltaState) {
-              this.io.to(playerId).emit('gameState', deltaState);
-            }
+            // const deltaState = this.createDeltaState(playerId, fullState);
+            // 
+            // // Pošli delta state ak existuje, inak nepošli nič
+            // if (deltaState) {
+            //   this.io.to(playerId).emit('gameState', deltaState);
+            // }
           }
         }
       });
@@ -1204,9 +1212,12 @@ export class GameServer {
     
     // Ak nemáme predchádzajúci stav, pošli celý
     if (!lastState) {
+      console.log(`🔄 ${playerId}: Posielam FULL update (prvý stav)`);
       this.lastSentState.set(playerId, JSON.parse(JSON.stringify(currentState)));
       return { full: true, state: currentState };
     }
+    
+    console.log(`🔄 ${playerId}: Kontrolujem delta zmeny...`);
     
     // Vytvor delta objekt
     const delta: any = {
@@ -1221,8 +1232,20 @@ export class GameServer {
       const lastPlayer = lastState.players[id];
       
       if (!lastPlayer) {
-        // Nový hráč
-        delta.players[id] = { ...player, new: true };
+        // Nový hráč - pošli všetky vlastnosti explicitne
+        delta.players[id] = {
+          id: player.id,
+          nickname: player.nickname,
+          score: player.score,
+          level: player.level,
+          position: player.position,
+          velocity: player.velocity,
+          radius: player.radius,
+          baseSpeed: player.baseSpeed,
+          isBot: player.isBot,
+          isInvulnerable: player.isInvulnerable,
+          new: true
+        };
       } else {
         // Existujúci hráč - pošli iba zmeny
         const changes: any = {};
@@ -1250,6 +1273,19 @@ export class GameServer {
         }
         if (player.isInvulnerable !== lastPlayer.isInvulnerable) {
           changes.isInvulnerable = player.isInvulnerable;
+          hasChanges = true;
+        }
+        
+        // Porovnaj velocity (dôležité pre pohyb!)
+        if (Math.abs(player.velocity.x - lastPlayer.velocity.x) > 1 ||
+            Math.abs(player.velocity.y - lastPlayer.velocity.y) > 1) {
+          changes.velocity = player.velocity;
+          hasChanges = true;
+        }
+        
+        // Porovnaj baseSpeed (dôležité pre správny výpočet rýchlosti!)
+        if (player.baseSpeed !== lastPlayer.baseSpeed) {
+          changes.baseSpeed = player.baseSpeed;
           hasChanges = true;
         }
         
