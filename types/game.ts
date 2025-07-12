@@ -54,7 +54,8 @@ export interface GameState {
 // Vstup od hráča
 export interface PlayerInput {
   position: Vector2; // cieľová pozícia (myš alebo joystick)
-  turbo: boolean;
+  turbo?: boolean;
+  isMobile?: boolean;
 }
 
 // Socket.IO udalosti

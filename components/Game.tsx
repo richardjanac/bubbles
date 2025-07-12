@@ -170,9 +170,59 @@ export default function Game() {
       setConnectionStatus('disconnected');
     });
 
-    socket.on('gameState', (state: GameState) => {
+    socket.on('gameState', (data: any) => {
       const now = Date.now();
       lastServerResponse.current = now;
+      
+      let state: GameState;
+      
+      // Spracuj delta alebo full update
+      if (data.full) {
+        // Full update
+        state = data.state;
+        setGameState(state);
+      } else {
+        // Delta update - aplikuj zmeny na existujúci stav
+        if (!gameState) return; // Nemôžeme aplikovať delta bez základného stavu
+        
+        const newState = JSON.parse(JSON.stringify(gameState)); // Deep copy
+        
+        // Aplikuj zmeny hráčov
+        Object.entries(data.players).forEach(([id, changes]: [string, any]) => {
+          if (changes.removed) {
+            delete newState.players[id];
+          } else if (changes.new) {
+            newState.players[id] = changes;
+          } else {
+            // Aplikuj čiastočné zmeny
+            if (!newState.players[id]) return;
+            Object.assign(newState.players[id], changes);
+          }
+        });
+        
+        // Aplikuj zmeny NPC
+        if (data.npcBubbles) {
+          // Pridaj nové NPC
+          Object.entries(data.npcBubbles.added).forEach(([id, npc]) => {
+            newState.npcBubbles[id] = npc as NPCBubble;
+          });
+          
+          // Odstráň NPC
+          data.npcBubbles.removed.forEach((id: string) => {
+            delete newState.npcBubbles[id];
+          });
+        }
+        
+        state = newState;
+        setGameState(state);
+      }
+      
+      // Diagnostika veľkosti payloadu
+      const stateSize = new Blob([JSON.stringify(data)]).size;
+      const playerCount = Object.keys(state.players).length;
+      const npcCount = Object.keys(state.npcBubbles).length;
+      const updateType = data.full ? 'FULL' : 'DELTA';
+      console.log(`📊 ${updateType}: ${(stateSize / 1024).toFixed(1)}KB | ${playerCount} players | ${npcCount} NPCs`);
       
       // Calculate input latency - iba ak je to recent
       if (lastInputTime.current > 0) {
@@ -185,7 +235,6 @@ export default function Game() {
         lastInputTime.current = 0;
       }
       
-      setGameState(state);
       // Nastav playerId ak ešte nie je nastavené
       if (!playerId && socket.id && state.players[socket.id]) {
         setPlayerId(socket.id);
@@ -341,7 +390,8 @@ export default function Game() {
 
       const input: PlayerInput = {
         position: targetPosition,
-        turbo: turboActive
+        turbo: turboActive,
+        isMobile: isMobile
       };
 
       

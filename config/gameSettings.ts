@@ -43,6 +43,7 @@ export const GAME_SETTINGS = {
   
   // ⚡ VÝKONNOSŤ
   GAME_LOOP_FPS: 30,                  // Zvýšené z 25 na 30 FPS pre plynulejšiu hru
+  MOBILE_GAME_LOOP_FPS: 10,           // Znížené FPS pre mobilné siete
   INPUT_UPDATE_FPS: 30,               // Optimalizované: 30 FPS (bolo 60) - stále responsívne
   
   // 🎨 VIZUÁLNE

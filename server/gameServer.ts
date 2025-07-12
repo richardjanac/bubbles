@@ -38,6 +38,8 @@ export class GameServer {
   private leaderboardPath: string;
   private isGameActive: boolean = false; // Nový flag pre aktívnosť hry
   private realPlayers: Set<string> = new Set(); // Track skutočných hráčov
+  private mobilePlayers: Set<string> = new Set(); // Track mobilných hráčov
+  private lastSentState: Map<string, any> = new Map(); // Track posledný poslaný stav pre každého hráča
 
   constructor(port: number = 3001) {
     this.httpServer = createServer((req, res) => {
@@ -149,7 +151,7 @@ export class GameServer {
         // Zabezpeč minimálne hráčov
         this.ensureMinimumPlayers();
 
-        socket.emit('gameState', this.serializeGameState());
+        socket.emit('gameState', { full: true, state: this.serializeGameState(socket.id) });
         this.io.emit('playerJoined', player);
       });
 
@@ -191,6 +193,8 @@ export class GameServer {
         }
         
         delete this.gameState.players[socket.id];
+        this.lastSentState.delete(socket.id); // Vyčisti aj cached state
+        this.mobilePlayers.delete(socket.id); // Vyčisti z mobile trackingu
         this.io.emit('playerLeft', socket.id);
         
         // Zabezpeč minimálny počet hráčov len ak hra beží
@@ -364,6 +368,15 @@ export class GameServer {
   }
 
   private updatePlayerInput(player: PlayerBubble, input: PlayerInput) {
+    // Track či je hráč na mobile
+    if (input.isMobile !== undefined) {
+      if (input.isMobile) {
+        this.mobilePlayers.add(player.id);
+      } else {
+        this.mobilePlayers.delete(player.id);
+      }
+    }
+    
     // Vypočítaj smer k cieľu
     const dx = input.position.x - player.position.x;
     const dy = input.position.y - player.position.y;
@@ -380,7 +393,7 @@ export class GameServer {
       // Nastav rýchlosť - turbo zrýchľuje o 2x
       const speedMultiplier = input.turbo ? 2.0 : 1.0;
       const speed = player.baseSpeed * speedMultiplier;
-      
+   
       player.velocity = {
         x: dirX * speed,
         y: dirY * speed
@@ -931,11 +944,40 @@ export class GameServer {
     });
   }
 
-  private serializeGameState(): GameState {
+  private serializeGameState(forPlayerId?: string): GameState {
     // Optimalizovaná serializácia pre menšie payloady
     const optimizedPlayers: any = {};
+    const optimizedNpcBubbles: any = {};
     
+    // Ak máme konkrétneho hráča, použijeme viewport culling
+    let viewportBounds = null;
+    if (forPlayerId && this.gameState.players[forPlayerId]) {
+      const player = this.gameState.players[forPlayerId];
+      const viewDistance = 800; // Viditeľná vzdialenosť (väčšia ako obrazovka)
+      
+      viewportBounds = {
+        left: player.position.x - viewDistance,
+        right: player.position.x + viewDistance,
+        top: player.position.y - viewDistance,
+        bottom: player.position.y + viewDistance
+      };
+    }
+    
+    // Serializuj hráčov
     Object.entries(this.gameState.players).forEach(([id, player]) => {
+      // Ak máme viewport, skontroluj či je hráč viditeľný
+      if (viewportBounds) {
+        const buffer = player.radius! + 100; // Extra buffer pre veľkých hráčov
+        if (player.position.x < viewportBounds.left - buffer || 
+            player.position.x > viewportBounds.right + buffer ||
+            player.position.y < viewportBounds.top - buffer || 
+            player.position.y > viewportBounds.bottom + buffer) {
+          // Hráč je mimo viewport - preskočiť
+          // ALE vždy pošli samého seba
+          if (id !== forPlayerId) return;
+        }
+      }
+      
       optimizedPlayers[id] = {
         id: player.id,
         nickname: player.nickname,
@@ -957,9 +999,20 @@ export class GameServer {
       };
     });
     
-    const optimizedNpcBubbles: any = {};
-    
+    // Serializuj NPC bubliny s viewport cullingom
     Object.entries(this.gameState.npcBubbles).forEach(([id, npc]) => {
+      // Ak máme viewport, skontroluj či je NPC viditeľná
+      if (viewportBounds) {
+        const npcRadius = calculateRadius(npc.score);
+        if (npc.position.x < viewportBounds.left - npcRadius || 
+            npc.position.x > viewportBounds.right + npcRadius ||
+            npc.position.y < viewportBounds.top - npcRadius || 
+            npc.position.y > viewportBounds.bottom + npcRadius) {
+          // NPC je mimo viewport - preskočiť
+          return;
+        }
+      }
+      
       optimizedNpcBubbles[id] = {
         id: npc.id,
         score: npc.score,
@@ -983,6 +1036,10 @@ export class GameServer {
     }
     
     console.log('🎮 Spúšťam game loop...');
+    
+    // Trackuj posledný update pre mobilných hráčov
+    let lastMobileUpdate = Date.now();
+    const mobileUpdateInterval = 1000 / GAME_SETTINGS.MOBILE_GAME_LOOP_FPS; // 100ms pre 10 FPS
     
     this.updateInterval = setInterval(() => {
       // Kontroluj či hra stále beží
@@ -1038,7 +1095,29 @@ export class GameServer {
       }
 
       // Pošli aktualizovaný stav všetkým klientom
-      this.io.emit('gameState', this.serializeGameState());
+      // Rozdeľ hráčov na desktop a mobile
+      const shouldUpdateMobile = currentTime - lastMobileUpdate >= mobileUpdateInterval;
+      
+      Object.keys(this.gameState.players).forEach(playerId => {
+        if (!this.gameState.players[playerId].isBot) {
+          const isMobile = this.mobilePlayers.has(playerId);
+          
+          // Desktop hráči dostávajú updaty vždy, mobilní iba občas
+          if (!isMobile || shouldUpdateMobile) {
+            const fullState = this.serializeGameState(playerId);
+            const deltaState = this.createDeltaState(playerId, fullState);
+            
+            // Pošli delta state ak existuje, inak nepošli nič
+            if (deltaState) {
+              this.io.to(playerId).emit('gameState', deltaState);
+            }
+          }
+        }
+      });
+      
+      if (shouldUpdateMobile) {
+        lastMobileUpdate = currentTime;
+      }
     }, 1000 / GAME_SETTINGS.GAME_LOOP_FPS); // Používa konfiguračné nastavenie
   }
 
@@ -1118,6 +1197,102 @@ export class GameServer {
       topLevel: this.monthlyLeaderboard.length > 0 ? this.monthlyLeaderboard[0].level : 0,
       topScore: this.monthlyLeaderboard.length > 0 ? this.monthlyLeaderboard[0].score : 0
     };
+  }
+
+  private createDeltaState(playerId: string, currentState: GameState): any {
+    const lastState = this.lastSentState.get(playerId);
+    
+    // Ak nemáme predchádzajúci stav, pošli celý
+    if (!lastState) {
+      this.lastSentState.set(playerId, JSON.parse(JSON.stringify(currentState)));
+      return { full: true, state: currentState };
+    }
+    
+    // Vytvor delta objekt
+    const delta: any = {
+      full: false,
+      players: {},
+      npcBubbles: { added: {}, removed: [] },
+      worldSize: currentState.worldSize
+    };
+    
+    // Porovnaj hráčov
+    Object.entries(currentState.players).forEach(([id, player]) => {
+      const lastPlayer = lastState.players[id];
+      
+      if (!lastPlayer) {
+        // Nový hráč
+        delta.players[id] = { ...player, new: true };
+      } else {
+        // Existujúci hráč - pošli iba zmeny
+        const changes: any = {};
+        let hasChanges = false;
+        
+        // Porovnaj pozíciu (s toleranciou 1px)
+        if (Math.abs(player.position.x - lastPlayer.position.x) > 1 ||
+            Math.abs(player.position.y - lastPlayer.position.y) > 1) {
+          changes.position = player.position;
+          hasChanges = true;
+        }
+        
+        // Porovnaj ostatné vlastnosti
+        if (player.score !== lastPlayer.score) {
+          changes.score = player.score;
+          hasChanges = true;
+        }
+        if (player.level !== lastPlayer.level) {
+          changes.level = player.level;
+          hasChanges = true;
+        }
+        if (player.radius !== lastPlayer.radius) {
+          changes.radius = player.radius;
+          hasChanges = true;
+        }
+        if (player.isInvulnerable !== lastPlayer.isInvulnerable) {
+          changes.isInvulnerable = player.isInvulnerable;
+          hasChanges = true;
+        }
+        
+        if (hasChanges) {
+          changes.id = id;
+          delta.players[id] = changes;
+        }
+      }
+    });
+    
+    // Nájdi odstránených hráčov
+    Object.keys(lastState.players).forEach(id => {
+      if (!currentState.players[id]) {
+        delta.players[id] = { removed: true };
+      }
+    });
+    
+    // Porovnaj NPC bubliny
+    Object.entries(currentState.npcBubbles).forEach(([id, npc]) => {
+      if (!lastState.npcBubbles[id]) {
+        delta.npcBubbles.added[id] = npc;
+      }
+    });
+    
+    Object.keys(lastState.npcBubbles).forEach(id => {
+      if (!currentState.npcBubbles[id]) {
+        delta.npcBubbles.removed.push(id);
+      }
+    });
+    
+    // Ulož aktuálny stav pre ďalšie porovnanie
+    this.lastSentState.set(playerId, JSON.parse(JSON.stringify(currentState)));
+    
+    // Ak nie sú žiadne zmeny, vráť null
+    const hasPlayerChanges = Object.keys(delta.players).length > 0;
+    const hasNpcAdded = Object.keys(delta.npcBubbles.added).length > 0;
+    const hasNpcRemoved = delta.npcBubbles.removed.length > 0;
+    
+    if (!hasPlayerChanges && !hasNpcAdded && !hasNpcRemoved) {
+      return null;
+    }
+    
+    return delta;
   }
 }
 
