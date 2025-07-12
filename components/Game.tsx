@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { 
   GameState, 
   PlayerBubble, 
+  NPCBubble,
   PlayerInput, 
   ServerToClientEvents,
   ClientToServerEvents,
