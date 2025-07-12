@@ -60,7 +60,7 @@ export interface PlayerInput {
 
 // Socket.IO udalosti
 export interface ServerToClientEvents {
-  gameState: (state: GameState) => void;
+  gameState: (state: GameState | { full: boolean; state?: GameState; players?: any; npcBubbles?: any }) => void;
   gameUpdate: (state: GameState) => void;
   playerJoined: (player: PlayerBubble) => void;
   playerLeft: (playerId: string) => void;
