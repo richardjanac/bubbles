@@ -1148,26 +1148,33 @@ export default function Game() {
           </div>
         </div>
       )}
-      {/* Scoreboard - horizontálne v hornej lište */}
+      {/* Scoreboard - TOP 3 s medailami */}
       {isPlaying && gameState && (
-        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black/60 px-6 py-2 rounded-lg text-white">
-          <div className="flex items-center gap-6 text-sm">
-            {Object.values(gameState.players)
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 5)
-              .map((player, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className={`text-xs ${player.id === playerId ? 'font-bold text-yellow-400' : 'text-gray-400'}`}>
-                    {index + 1}.
-                  </span>
-                  <span className={`inline-block w-20 truncate ${player.id === playerId ? 'font-bold text-yellow-400' : 'text-white'}`}>
-                    {player.nickname}
-                  </span>
-                  <span className={`inline-block w-10 text-right ${player.id === playerId ? 'font-bold text-yellow-400' : 'text-gray-400'}`}>
-                    {Math.round(player.score)}
-                  </span>
-                </div>
-              ))}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+          <div className="bg-gradient-to-r from-gray-900/80 to-gray-800/80 px-8 py-3 rounded-2xl shadow-2xl border border-gray-700/50">
+            <div className="flex items-center gap-8">
+              {Object.values(gameState.players)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 3)
+                .map((player, index) => {
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const isMe = player.id === playerId;
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-3">
+                      <span className="text-2xl">{medals[index]}</span>
+                      <div className="flex flex-col">
+                        <span className={`font-semibold ${isMe ? 'text-yellow-400' : 'text-white'}`}>
+                          {player.nickname.substring(0, 12)}
+                        </span>
+                        <span className={`text-sm ${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
+                          {Math.round(player.score)} bodov
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         </div>
       )}
