@@ -45,11 +45,17 @@ export class GameServer {
   private lagCompensation: LagCompensation = new LagCompensation();
 
   constructor(port: number = 3001) {
+    console.log('🚀 Game Server štartuje - Verzia s bot turbo opravami (afda3c7)');
+    
     this.httpServer = createServer((req, res) => {
       // Jednoduchý health check endpoint
       if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'OK', timestamp: new Date().toISOString() }));
+        res.end(JSON.stringify({ 
+          status: 'OK', 
+          timestamp: new Date().toISOString(),
+          version: 'bot-turbo-fix-afda3c7'
+        }));
         return;
       }
       res.writeHead(404);
