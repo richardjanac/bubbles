@@ -9,7 +9,7 @@
     "build": "next build && npm run build:server",
     "build:server": "rm -rf dist && tsc --project tsconfig.server.json",
     "start": "next start",
-    "start:server": "node dist/server/index.js",
+    "start:server": "node dist/server/main.js",
     "lint": "next lint"
   },
   "dependencies": {
