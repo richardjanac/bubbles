@@ -72,10 +72,13 @@ export class NetworkDiagnostics {
     this.stats.messageTypes[type].count++;
     this.stats.messageTypes[type].bytes += size;
     
-    // Aktualizuj najväčšiu správu
+    // Aktualizuj najväčšiu správu a upozorni len na skutočne veľké správy
     if (size > this.stats.largestMessage) {
       this.stats.largestMessage = size;
-      console.warn(`⚠️ Large message detected: ${type} - ${(size / 1024).toFixed(2)} KB`);
+      // Upozorni len ak je správa väčšia ako 50KB (zvýšený limit)
+      if (size > 51200) {
+        console.warn(`⚠️ Large message detected: ${type} - ${(size / 1024).toFixed(2)} KB`);
+      }
     }
     
     // Vyčisti staré správy (staršie ako 1 sekunda)
@@ -140,8 +143,8 @@ Runtime: ${runtime.toFixed(1)}s
       report += `- HIGH BANDWIDTH: ${stats.bandwidthUsage.toFixed(2)} KB/s (should be < 50 KB/s)\n`;
     }
     
-    if (stats.largestMessage > 10240) {
-      report += `- LARGE MESSAGES: Largest ${(stats.largestMessage / 1024).toFixed(2)} KB (should be < 10 KB)\n`;
+    if (stats.largestMessage > 51200) {
+      report += `- LARGE MESSAGES: Largest ${(stats.largestMessage / 1024).toFixed(2)} KB (should be < 50 KB)\n`;
     }
     
     if (stats.messagesPerSecond > 60) {

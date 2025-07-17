@@ -453,6 +453,9 @@ export class GameServer {
         personality.targetPosition = decision.position;
         personality.isMovingToTarget = true;
         
+        // OPRAVA: Nastav turbo stav pre bota (rovnako ako pre skutočných hráčov)
+        (bot as any).turboActive = decision.turbo;
+        
         // Vypočítaj cieľovú rýchlosť
         const dx = decision.position.x - bot.position.x;
         const dy = decision.position.y - bot.position.y;
@@ -484,12 +487,16 @@ export class GameServer {
         personality.isMovingToTarget = false;
         // Spomalenie pri dosiahnutí cieľa
         personality.targetVelocity = { x: 0, y: 0 };
+        // OPRAVA: Vypni turbo keď dosiahne cieľ
+        (bot as any).turboActive = false;
       }
     } else {
       // Postupné spomalenie ak nemá cieľ
       const dampingFactor = Math.pow(0.1, deltaTime); // Exponenciálne spomalenie
       bot.velocity.x *= dampingFactor;
       bot.velocity.y *= dampingFactor;
+      // OPRAVA: Vypni turbo ak nemá cieľ
+      (bot as any).turboActive = false;
     }
   }
   

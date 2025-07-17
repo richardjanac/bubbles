@@ -71,6 +71,7 @@ export default function Game() {
     topLevel: 0,
     topScore: 0
   });
+  const [currentPage, setCurrentPage] = useState(0);
 
   // Odstránené mock dáta - teraz používame skutočné dáta zo servera
 
@@ -466,17 +467,14 @@ export default function Game() {
       canvas.style.width = '100vw';
       canvas.style.height = '100vh';
       
-      // Škáluj kontext pre DPR
-      const context = canvas.getContext('2d', {
-        alpha: false, // Nepotrebujeme priesvitnosť
-        desynchronized: true, // Lepší výkon
-        willReadFrequently: false
-      });
+      // Resetuj transform a scale - používaj existujúci kontext
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
       
-      if (context) {
-        context.scale(dpr, dpr);
-        // Optimalizuj kontext podľa výkonu zariadenia
-        CanvasOptimizer.optimizeContext(context, devicePerformance.current.tier);
+      // Optimalizuj kontext podľa výkonu zariadenia (len ak nie je už optimalizovaný)
+      if (!(ctx as any)._optimized) {
+        CanvasOptimizer.optimizeContext(ctx, devicePerformance.current.tier);
+        (ctx as any)._optimized = true;
       }
     };
     
@@ -924,7 +922,10 @@ export default function Game() {
               <h2 className="text-3xl font-bold mb-6 text-white text-center">🏆 Najlepší hráči</h2>
               <div className="flex justify-center mb-6 bg-white/10 rounded-full p-1 max-w-xs mx-auto border border-white/20">
                 <button
-                  onClick={() => setLeaderboardTab('live')}
+                  onClick={() => {
+                    setLeaderboardTab('live');
+                    setCurrentPage(0);
+                  }}
                   className={`flex-1 py-3 rounded-full font-semibold transition-colors ${
                     leaderboardTab === 'live' ? 'bg-white/20 shadow text-white border border-white/30' : 'text-white/70 hover:text-white'
                   }`}
@@ -934,6 +935,7 @@ export default function Game() {
                 <button
                   onClick={() => {
                     setLeaderboardTab('monthly');
+                    setCurrentPage(0);
                     // Požiadaj o aktuálny mesačný leaderboard
                     if (socketRef.current?.connected) {
                       socketRef.current.emit('getMonthlyLeaderboard');
@@ -962,7 +964,7 @@ export default function Game() {
                   {gameState && Object.values(gameState.players).length > 0 ? (
                     <div className="space-y-2">
                       {/* Header */}
-                      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-semibold text-gray-600 border-b border-gray-200">
+                      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-semibold text-white/70 border-b border-white/20">
                         <div className="col-span-1 text-center">#</div>
                         <div className="col-span-6">Hráč</div>
                         <div className="col-span-2 text-center">Level</div>
@@ -970,59 +972,67 @@ export default function Game() {
                       </div>
                       
                       {/* Players */}
-                      {Object.values(gameState.players)
-                        .sort((a, b) => b.level - a.level || b.score - a.score)
-                        .slice(0, 8)
-                        .map((player, index) => (
-                          <div key={player.id} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors items-center">
+                      {(() => {
+                        const sortedPlayers = Object.values(gameState.players)
+                          .sort((a, b) => b.level - a.level || b.score - a.score);
+                        const startIndex = currentPage * 10;
+                        const endIndex = startIndex + 10;
+                        return sortedPlayers.slice(startIndex, endIndex).map((player, index) => (
+                          <div key={player.id} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors items-center">
                             <div className="col-span-1 text-center">
-                              <span className="text-lg font-bold">
-                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                              <span className="text-lg font-bold text-white">
+                                {startIndex + index === 0 ? '🥇' : startIndex + index === 1 ? '🥈' : startIndex + index === 2 ? '🥉' : `${startIndex + index + 1}.`}
                               </span>
                             </div>
                             <div className="col-span-6">
-                              <span className="font-medium text-gray-800">{player.nickname}</span>
+                              <span className="font-medium text-white">{player.nickname}</span>
                             </div>
                             <div className="col-span-2 text-center">
-                              <span className="text-sm font-semibold text-blue-600">Lvl {player.level}</span>
+                              <span className="text-sm font-semibold text-blue-400">Lvl {player.level}</span>
                             </div>
                             <div className="col-span-3 text-right">
-                              <span className="text-sm text-gray-600">{player.score} pts</span>
+                              <span className="text-sm text-white/70">{player.score} pts</span>
                             </div>
                           </div>
-                        ))}
+                        ));
+                      })()}
+                      
+                      {/* Pagination */}
+                      {gameState && Object.values(gameState.players).length > 10 && (
+                        <div className="flex justify-center gap-2 mt-4">
+                          <button
+                            onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                            disabled={currentPage === 0}
+                            className="px-3 py-1 bg-white/20 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/30"
+                          >
+                            ←
+                          </button>
+                          <span className="px-3 py-1 text-white">
+                            {currentPage + 1} / {Math.ceil(Object.values(gameState.players).length / 10)}
+                          </span>
+                          <button
+                            onClick={() => setCurrentPage(Math.min(Math.ceil(Object.values(gameState.players).length / 10) - 1, currentPage + 1))}
+                            disabled={currentPage >= Math.ceil(Object.values(gameState.players).length / 10) - 1}
+                            className="px-3 py-1 bg-white/20 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/30"
+                          >
+                            →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-12">
                       <div className="text-4xl mb-4">🔄</div>
-                      <p className="text-gray-500">Pripájam sa k serveru...</p>
+                      <p className="text-white/70">Pripájam sa k serveru...</p>
                     </div>
                   )}
                 </>
               )}
 
               {leaderboardTab === 'monthly' && (
-                <div className="space-y-4">
-                  {/* Štatistiky */}
-                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-4 border border-purple-100">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-2xl font-bold text-purple-600">{leaderboardStats.totalPlayers}</div>
-                        <div className="text-sm text-gray-600">Celkom hráčov</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-blue-600">Lvl {leaderboardStats.topLevel}</div>
-                        <div className="text-sm text-gray-600">Najvyšší level</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-green-600">{leaderboardStats.topScore}</div>
-                        <div className="text-sm text-gray-600">Najvyššie skóre</div>
-                      </div>
-                    </div>
-                  </div>
-
+                <div className="space-y-2">
                   {/* Header */}
-                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-semibold text-gray-600 border-b border-gray-200">
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-semibold text-white/70 border-b border-white/20">
                     <div className="col-span-1 text-center">#</div>
                     <div className="col-span-6">Hráč</div>
                     <div className="col-span-2 text-center">Level</div>
@@ -1031,28 +1041,57 @@ export default function Game() {
                   
                   {/* Players */}
                   {monthlyLeaderboard.length > 0 ? (
-                    monthlyLeaderboard.slice(0, 8).map((player, index) => (
-                      <div key={player.id} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors items-center">
-                        <div className="col-span-1 text-center">
-                          <span className="text-lg font-bold">
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                    <>
+                      {(() => {
+                        const startIndex = currentPage * 10;
+                        const endIndex = startIndex + 10;
+                        return monthlyLeaderboard.slice(startIndex, endIndex).map((player, index) => (
+                          <div key={player.id} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors items-center">
+                            <div className="col-span-1 text-center">
+                              <span className="text-lg font-bold text-white">
+                                {startIndex + index === 0 ? '🥇' : startIndex + index === 1 ? '🥈' : startIndex + index === 2 ? '🥉' : `${startIndex + index + 1}.`}
+                              </span>
+                            </div>
+                            <div className="col-span-6">
+                              <span className="font-medium text-white">{player.nickname}</span>
+                            </div>
+                            <div className="col-span-2 text-center">
+                              <span className="text-sm font-semibold text-purple-400">Lvl {player.level}</span>
+                            </div>
+                            <div className="col-span-3 text-right">
+                              <span className="text-sm text-white/70">{player.score} pts</span>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                      
+                      {/* Pagination */}
+                      {monthlyLeaderboard.length > 10 && (
+                        <div className="flex justify-center gap-2 mt-4">
+                          <button
+                            onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                            disabled={currentPage === 0}
+                            className="px-3 py-1 bg-white/20 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/30"
+                          >
+                            ←
+                          </button>
+                          <span className="px-3 py-1 text-white">
+                            {currentPage + 1} / {Math.ceil(monthlyLeaderboard.length / 10)}
                           </span>
+                          <button
+                            onClick={() => setCurrentPage(Math.min(Math.ceil(monthlyLeaderboard.length / 10) - 1, currentPage + 1))}
+                            disabled={currentPage >= Math.ceil(monthlyLeaderboard.length / 10) - 1}
+                            className="px-3 py-1 bg-white/20 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/30"
+                          >
+                            →
+                          </button>
                         </div>
-                        <div className="col-span-6">
-                          <span className="font-medium text-gray-800">{player.nickname}</span>
-                        </div>
-                        <div className="col-span-2 text-center">
-                          <span className="text-sm font-semibold text-purple-600">Lvl {player.level}</span>
-                        </div>
-                        <div className="col-span-3 text-right">
-                          <span className="text-sm text-gray-600">{player.score} pts</span>
-                        </div>
-                      </div>
-                    ))
+                      )}
+                    </>
                   ) : (
                     <div className="text-center py-12">
                       <div className="text-4xl mb-4">📊</div>
-                      <p className="text-gray-500">Zatiaľ žiadni hráči v mesačnom leaderboarde</p>
+                      <p className="text-white/70">Zatiaľ žiadni hráči v mesačnom leaderboarde</p>
                     </div>
                   )}
                 </div>

@@ -85,35 +85,60 @@ export class PerformanceDetector {
     }
   }
   
+  private static _isOldDeviceCache: boolean | null = null;
+  
   private isOldDevice(): boolean {
+    // Cache výsledok, aby sme nevytvárali WebGL kontext opakovane - FIX pre WebGL leak
+    if (PerformanceDetector._isOldDeviceCache !== null) {
+      return PerformanceDetector._isOldDeviceCache;
+    }
+    
     // Kontrola či sme v browseri
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      PerformanceDetector._isOldDeviceCache = false;
       return false;
     }
     
     const ua = navigator.userAgent;
     
     // Staré iPhone modely
-    if (/iPhone OS [4-9]_/.test(ua)) return true;
-    if (/iPhone OS 1[0-2]_/.test(ua) && /iPhone [4-7],/.test(ua)) return true;
+    if (/iPhone OS [4-9]_/.test(ua)) {
+      PerformanceDetector._isOldDeviceCache = true;
+      return true;
+    }
+    if (/iPhone OS 1[0-2]_/.test(ua) && /iPhone [4-7],/.test(ua)) {
+      PerformanceDetector._isOldDeviceCache = true;
+      return true;
+    }
     
     // Staré Android zariadenia
-    if (/Android [4-6]\./.test(ua)) return true;
+    if (/Android [4-6]\./.test(ua)) {
+      PerformanceDetector._isOldDeviceCache = true;
+      return true;
+    }
     
-    // Detekcia podľa roku (zariadenia staršie ako 2018)
+    // Detekcia podľa roku (zariadenia staršie ako 2018) - len raz
     if (typeof document !== 'undefined') {
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      if (gl && gl instanceof WebGLRenderingContext) {
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        if (debugInfo) {
-          const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-          // Staré GPU
-          if (renderer && typeof renderer === 'string' && /Mali-4|Adreno 3|PowerVR SGX/.test(renderer)) return true;
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl && gl instanceof WebGLRenderingContext) {
+          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+          if (debugInfo) {
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            // Staré GPU
+            if (renderer && typeof renderer === 'string' && /Mali-4|Adreno 3|PowerVR SGX/.test(renderer)) {
+              PerformanceDetector._isOldDeviceCache = true;
+              return true;
+            }
+          }
         }
+      } catch (error) {
+        console.warn('WebGL detection failed:', error);
       }
     }
     
+    PerformanceDetector._isOldDeviceCache = false;
     return false;
   }
   
