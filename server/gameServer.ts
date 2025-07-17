@@ -570,12 +570,15 @@ export class GameServer {
 
   private makeBotDecision(bot: PlayerBubble, analysis: any, personality: any): PlayerInput | null {
     const currentTime = Date.now();
-    
+    const botDebug = true; // Dočasne zapneme debugovanie
+    if (botDebug) console.log(`[BOT-DEBUG] ${bot.nickname} | Score: ${bot.score} | Analyzing...`);
+
     // PRIORITA 1: Panic mode - utekaj od nebezpečenstva!
     if (analysis.dangerousEnemies.length > 0) {
       const closestDanger = analysis.dangerousEnemies[0];
       if (closestDanger.distance < bot.radius! * 4) {
         personality.panicMode = true;
+        if (botDebug) console.log(`[BOT-DEBUG] ${bot.nickname} -> ESCAPING from ${closestDanger.target.nickname}`);
         return this.createSmoothEscapeDecision(bot, closestDanger.target);
       }
     }
@@ -589,6 +592,14 @@ export class GameServer {
         const shouldUseTurbo = target.distance > 150 && 
                              bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2 &&
                              currentTime - personality.lastTurboUse > 8000;
+        
+        if (botDebug) {
+            console.log(`[BOT-DEBUG] ${bot.nickname} -> ATTACKING ${target.target.nickname}`);
+            console.log(`    - Turbo Condition: distance > 150 (${target.distance > 150})`);
+            console.log(`    - Turbo Condition: score > min*2 (${bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2})`);
+            console.log(`    - Turbo Condition: cooldown > 8s (${currentTime - personality.lastTurboUse > 8000})`);
+            console.log(`    - DECISION: Use Turbo = ${shouldUseTurbo}`);
+        }
         
         if (shouldUseTurbo) {
           personality.lastTurboUse = currentTime;
@@ -634,6 +645,14 @@ export class GameServer {
                            bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2 &&
                            Math.random() < 0.3; // 30% šanca na turbo pri jedení
         
+        if (botDebug) {
+            console.log(`[BOT-DEBUG] ${bot.nickname} -> EATING`);
+            console.log(`    - Turbo Condition: distance > 120 (${distanceToFood > 120})`);
+            console.log(`    - Turbo Condition: score > min*2 (${bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2})`);
+            console.log(`    - Turbo Condition: 30% chance`);
+            console.log(`    - DECISION: Use Turbo = ${useFoodTurbo}`);
+        }
+        
         return {
           position: bestFood.position,
           turbo: useFoodTurbo
@@ -642,6 +661,7 @@ export class GameServer {
     }
     
     // PRIORITA 4: Náhodné preskúmanie (plynulé)
+    if (botDebug) console.log(`[BOT-DEBUG] ${bot.nickname} -> EXPLORING`);
     return this.createSmoothExploreDecision(bot, personality);
   }
 
@@ -686,7 +706,14 @@ export class GameServer {
     
     // OPRAVA: Použij turbo pri úteku ak je nebezpečenstvo blízko a bot má dostatok bodov
     const useEscapeTurbo = length < 100 && bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 1.5;
-    
+
+    if (true) { // Dočasne zapnuté
+        console.log(`[BOT-DEBUG] ${bot.nickname} -> ESCAPE DECISION`);
+        console.log(`    - Turbo Condition: danger_distance < 100 (${length < 100})`);
+        console.log(`    - Turbo Condition: score > min*1.5 (${bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 1.5})`);
+        console.log(`    - DECISION: Use Turbo = ${useEscapeTurbo}`);
+    }
+
     return {
       position: { x: targetX, y: targetY },
       turbo: useEscapeTurbo
