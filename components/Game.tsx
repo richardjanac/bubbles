@@ -1161,13 +1161,13 @@ export default function Game() {
                   const isMe = player.id === playerId;
                   
                   return (
-                    <div key={index} className="flex items-center gap-2">
+                    <div key={index} className="flex items-center gap-2 whitespace-nowrap">
                       <span className="text-lg">{medals[index]}</span>
                       <span className={`text-sm font-medium ${isMe ? 'text-yellow-400' : 'text-white'}`}>
                         {player.nickname.substring(0, 8)}
                       </span>
                       <span className={`text-xs ${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
-                        Lvl {player.level}
+                        Lvl{player.level}
                       </span>
                       <span className={`text-xs ${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
                         {Math.round(player.score)}
