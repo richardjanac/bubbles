@@ -4,9 +4,10 @@ import * as path from 'path';
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 console.log(`Spúšťam game server na porte ${port}`);
+console.log(`🚀🚀🚀 NOVÁ VERZIA S BOT TURBO! Timestamp: ${Date.now()} 🚀🚀🚀`);
 console.log(`Current working directory: ${process.cwd()}`);
 console.log(`Script directory: ${__dirname}`);
-console.log(`🚀 SERVER STARTUP - Verzia s BOT TURBO opravami (af94c69)`);
+console.log(`🤖 BOT TURBO OPRAVY SÚ AKTIVOVANÉ - COMMIT 5239ffa`);
 
 const gameServer = new GameServer(port);
 
