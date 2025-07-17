@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: paddock-bubbles-server
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install && npm run build:server
+    startCommand: node dist/server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: paddock-bubbles-server
+          property: port
+    healthCheckPath: /health
+    # Ensure we're building the server, not frontend
+    rootDir: ./
+    buildFilter:
+      paths:
+        - server/**
+        - types/**
+        - package.json
+        - tsconfig.server.json 
