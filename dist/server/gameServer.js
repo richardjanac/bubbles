@@ -39,6 +39,8 @@ const http_1 = require("http");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const game_1 = require("../types/game");
+const deltaCompression_1 = require("./deltaCompression");
+const lagCompensation_1 = require("./lagCompensation");
 // Herný server
 class GameServer {
     constructor(port = 3001) {
@@ -47,6 +49,9 @@ class GameServer {
         this.monthlyLeaderboard = [];
         this.isGameActive = false; // Nový flag pre aktívnosť hry
         this.realPlayers = new Set(); // Track skutočných hráčov
+        this.deltaCompressor = new deltaCompression_1.DeltaCompressor();
+        this.clientUpdateRates = new Map(); // Adaptívny update rate per klient
+        this.lagCompensation = new lagCompensation_1.LagCompensation();
         this.httpServer = (0, http_1.createServer)((req, res) => {
             // Jednoduchý health check endpoint
             if (req.url === '/health') {
@@ -66,6 +71,7 @@ class GameServer {
                 origin: (origin, callback) => {
                     const allowedOrigins = [
                         'https://bubbles-nrl5.vercel.app',
+                        'https://paddock-bubbles.vercel.app',
                         'http://localhost:3000',
                         'http://localhost:3001',
                         'http://localhost:3002'
@@ -90,17 +96,22 @@ class GameServer {
                 credentials: true,
                 allowedHeaders: ['Content-Type']
             },
-            // AGRESÍVNE optimalizácie pre Railway WebSocket problems
-            pingTimeout: 5000, // Kratší timeout
-            pingInterval: 2000, // Častejšie ping
-            upgradeTimeout: 5000, // Rýchlejší upgrade timeout
-            transports: ['polling', 'websocket'], // Polling FIRST (obídeme WebSocket issue)
+            // Socket.IO optimalizácie pre rýchle spojenie
+            transports: ['websocket', 'polling'], // WebSocket FIRST pre rýchle spojenie
+            pingTimeout: 60000, // Štandardný timeout
+            pingInterval: 25000, // Štandardný interval
+            upgradeTimeout: 10000, // Štandardný upgrade timeout
             allowEIO3: true, // Backward compatibility
-            // Menšie buffery pre nižšiu latency
-            maxHttpBufferSize: 1e6,
-            // Agresívny cleanup
-            destroyUpgrade: false,
-            destroyUpgradeTimeout: 1000
+            maxHttpBufferSize: 1e6, // 1MB buffer
+            // Optimalizácie pre mobilné siete
+            perMessageDeflate: {
+                threshold: 1024, // Kompresuj správy väčšie ako 1KB
+                zlibDeflateOptions: {
+                    level: 6 // Stredná úroveň kompresie
+                }
+            },
+            httpCompression: true, // HTTP kompresia pre polling
+            allowUpgrades: true, // Povoľ upgrade z polling na websocket
         });
         // Inicializuj mesačný leaderboard
         this.leaderboardPath = path.join(__dirname, 'monthlyLeaderboard.json');
@@ -136,14 +147,20 @@ class GameServer {
                 }
                 // Zabezpeč minimálne hráčov
                 this.ensureMinimumPlayers();
-                socket.emit('gameState', this.serializeGameState());
+                // Pri join pošli delta update s full state
+                const delta = this.deltaCompressor.computeDelta(socket.id, this.gameState, true);
+                socket.emit('deltaUpdate', delta);
                 this.io.emit('playerJoined', player);
             });
             socket.on('updateInput', (input) => {
                 const player = this.gameState.players[socket.id];
-                if (player) {
-                    this.updatePlayerInput(player, input);
+                if (!player || !input || !input.position)
+                    return;
+                // Ulož posledné spracované sequence number
+                if (input.sequence) {
+                    player.lastProcessedInput = input.sequence;
                 }
+                this.updatePlayerInput(player, input);
             });
             socket.on('getMonthlyLeaderboard', (limit) => {
                 socket.emit('monthlyLeaderboard', this.getMonthlyLeaderboard(limit || 10));
@@ -154,6 +171,16 @@ class GameServer {
             // Ping/pong pre latency monitoring
             socket.on('ping', (timestamp) => {
                 socket.emit('pong', timestamp);
+                // Vypočítaj latency a nastav adaptívny update rate
+                const latency = Date.now() - timestamp;
+                let updateRate = 1; // Default: každý frame
+                if (latency > 200) {
+                    updateRate = 3; // Vysoká latencia: každý 3. frame
+                }
+                else if (latency > 100) {
+                    updateRate = 2; // Stredná latencia: každý 2. frame
+                }
+                this.clientUpdateRates.set(socket.id, updateRate);
             });
             socket.on('disconnect', () => {
                 const wasRealPlayer = this.realPlayers.has(socket.id);
@@ -169,6 +196,10 @@ class GameServer {
                 }
                 delete this.gameState.players[socket.id];
                 this.io.emit('playerLeft', socket.id);
+                // Vyčisti delta kompresiu dáta
+                this.deltaCompressor.removeClient(socket.id);
+                this.clientUpdateRates.delete(socket.id);
+                this.lagCompensation.removePlayer(socket.id);
                 // Zabezpeč minimálny počet hráčov len ak hra beží
                 if (this.isGameActive) {
                     this.ensureMinimumPlayers();
@@ -316,7 +347,7 @@ class GameServer {
         const distance = Math.sqrt(dx * dx + dy * dy);
         // Uložíme turbo stav do player objektu
         player.turboActive = input.turbo;
-        if (distance > 0) {
+        if (distance > 5) { // Zmena: iba ak je cieľ dostatočne ďaleko (5px threshold)
             // Normalizuj vektor smeru
             const dirX = dx / distance;
             const dirY = dy / distance;
@@ -329,6 +360,7 @@ class GameServer {
             };
         }
         else {
+            // Ak je hráč blízko cieľa, okamžite zastav
             player.velocity = { x: 0, y: 0 };
         }
     }
@@ -775,8 +807,11 @@ class GameServer {
         this.gameState.npcBubbles[npc.id] = npc;
     }
     updatePhysics(deltaTime) {
+        const now = Date.now();
         // Aktualizuj pozície hráčov
         Object.values(this.gameState.players).forEach(player => {
+            // Zaznamenaj pozíciu pred pohybom pre lag compensation
+            this.lagCompensation.recordPosition(player.id, player.position, player.velocity, now);
             player.position.x += player.velocity.x * deltaTime;
             player.position.y += player.velocity.y * deltaTime;
             // Udržuj hráčov v hraniciach mapy
@@ -785,10 +820,43 @@ class GameServer {
         });
     }
     serializeGameState() {
-        // Už máme objekty, nie Map, takže len vrátime gameState
+        // Optimalizovaná serializácia pre menšie payloady
+        const optimizedPlayers = {};
+        Object.entries(this.gameState.players).forEach(([id, player]) => {
+            optimizedPlayers[id] = {
+                id: player.id,
+                nickname: player.nickname,
+                score: player.score,
+                level: player.level,
+                position: {
+                    x: Math.round(player.position.x),
+                    y: Math.round(player.position.y)
+                },
+                velocity: {
+                    x: Math.round(player.velocity.x),
+                    y: Math.round(player.velocity.y)
+                },
+                radius: Math.round(player.radius),
+                baseSpeed: Math.round(player.baseSpeed),
+                isBot: player.isBot,
+                isInvulnerable: player.isInvulnerable
+                // Vynechávame spawnTime - klient ho nepotrebuje
+            };
+        });
+        const optimizedNpcBubbles = {};
+        Object.entries(this.gameState.npcBubbles).forEach(([id, npc]) => {
+            optimizedNpcBubbles[id] = {
+                id: npc.id,
+                score: npc.score,
+                position: {
+                    x: Math.round(npc.position.x),
+                    y: Math.round(npc.position.y)
+                }
+            };
+        });
         return {
-            players: this.gameState.players,
-            npcBubbles: this.gameState.npcBubbles,
+            players: optimizedPlayers,
+            npcBubbles: optimizedNpcBubbles,
             worldSize: this.gameState.worldSize
         };
     }
@@ -841,7 +909,17 @@ class GameServer {
                 }
             }
             // Pošli aktualizovaný stav všetkým klientom
-            this.io.emit('gameState', this.serializeGameState());
+            // Použij delta kompresiu pre lepšiu výkonnosť
+            const currentState = this.serializeGameState();
+            for (const [socketId, socket] of this.io.sockets.sockets) {
+                // Preskočíme ak klient nepotrebuje update
+                const updateRate = this.clientUpdateRates.get(socketId) || 1;
+                if (Math.floor(currentTime / (1000 / game_1.GAME_SETTINGS.GAME_LOOP_FPS)) % updateRate !== 0) {
+                    continue;
+                }
+                const delta = this.deltaCompressor.computeDelta(socketId, currentState);
+                socket.emit('deltaUpdate', delta);
+            }
         }, 1000 / game_1.GAME_SETTINGS.GAME_LOOP_FPS); // Používa konfiguračné nastavenie
     }
     stop() {

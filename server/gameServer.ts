@@ -154,7 +154,9 @@ export class GameServer {
         // Zabezpeč minimálne hráčov
         this.ensureMinimumPlayers();
 
-        socket.emit('gameState', this.serializeGameState());
+        // Pri join pošli delta update s full state
+        const delta = this.deltaCompressor.computeDelta(socket.id, this.gameState, true);
+        socket.emit('deltaUpdate', delta);
         this.io.emit('playerJoined', player);
       });
 

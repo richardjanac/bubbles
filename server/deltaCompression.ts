@@ -23,7 +23,7 @@ export interface DeltaUpdate {
 
 export class DeltaCompressor {
   private lastSentState: Map<string, GameState> = new Map();
-  private fullStateSendInterval = 2000; // Pošli full state každé 2 sekundy
+  private fullStateSendInterval = 10000; // Pošli full state každých 10 sekúnd
   private lastFullStateSend: Map<string, number> = new Map();
   
   // Vypočítaj delta medzi dvoma stavmi

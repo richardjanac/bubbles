@@ -17,6 +17,7 @@ import { ClientPrediction } from '../utils/clientPrediction';
 import { DeltaHandler } from '../utils/deltaHandler';
 import { PerformanceDetector, CanvasOptimizer } from '../utils/mobileOptimizations';
 import { NetworkQualityMonitor } from '../utils/networkQualityMonitor';
+import { NetworkDiagnostics } from '../utils/networkDiagnostics';
 
 // Lazy load heavy components
 const Joystick = dynamic(() => import('./Joystick'));
@@ -40,6 +41,7 @@ export default function Game() {
   const canvasOptimizer = useRef(new CanvasOptimizer());
   const devicePerformance = useRef(performanceDetector.current.detectPerformance());
   const networkMonitor = useRef(new NetworkQualityMonitor());
+  const networkDiagnostics = useRef(new NetworkDiagnostics());
   
   // State
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -163,6 +165,9 @@ export default function Game() {
       withCredentials: false, // Zníženie overhead
     });
     socketRef.current = socket;
+    
+    // Pripoj network diagnostiku
+    networkDiagnostics.current.attachToSocket(socket);
 
     socket.on('connect', () => {
       setIsConnected(true);
@@ -183,38 +188,12 @@ export default function Game() {
       setConnectionStatus('disconnected');
     });
 
+    // Zakomentované - všetko ide cez deltaUpdate
+    /*
     socket.on('gameState', (state: GameState) => {
-      const now = Date.now();
-      lastServerResponse.current = now;
-      
-      // Calculate input latency - iba ak je to recent
-      if (lastInputTime.current > 0) {
-        const inputLag = now - lastInputTime.current;
-        // Zobraz input latency iba ak je rozumná (< 10 sekúnd)
-        if (inputLag < 10000) {
-          setInputLatency(inputLag);
-        }
-        // Reset input time pre nové meranie
-        lastInputTime.current = 0;
-      }
-      
-      // Pridaj snapshot do client prediction
-      clientPrediction.current.addSnapshot({
-        timestamp: now,
-        players: state.players,
-        serverTime: now
-      });
-      
-      setGameState(state);
-      // Nastav playerId ak ešte nie je nastavené
-      if (!playerId && socket.id && state.players[socket.id]) {
-        setPlayerId(socket.id);
-      }
-      // Skontroluj či hráč stále žije
-      if (playerId && !state.players[playerId]) {
-        setIsDead(true);
-      }
+      // ... pôvodný kód ...
     });
+    */
     
     // Handler pre delta updaty
     socket.on('deltaUpdate', (delta: any) => {
@@ -222,6 +201,15 @@ export default function Game() {
       if (newState) {
         const now = Date.now();
         lastServerResponse.current = now;
+        
+        // Calculate input latency
+        if (lastInputTime.current > 0) {
+          const inputLag = now - lastInputTime.current;
+          if (inputLag < 10000) {
+            setInputLatency(inputLag);
+          }
+          lastInputTime.current = 0;
+        }
         
         // Pridaj snapshot do client prediction
         clientPrediction.current.addSnapshot({
@@ -231,6 +219,11 @@ export default function Game() {
         });
         
         setGameState(newState);
+        
+        // Nastav playerId ak ešte nie je nastavené
+        if (!playerId && socket.id && newState.players[socket.id]) {
+          setPlayerId(socket.id);
+        }
         
         // Skontroluj či hráč stále žije
         if (playerId && !newState.players[playerId]) {
@@ -297,7 +290,15 @@ export default function Game() {
       e.preventDefault();
       setTurboActive(true);
     }
-  }, [isMobile]);
+    // Debug diagnostika - stlač Ctrl+D
+    if (e.code === 'KeyD' && e.ctrlKey) {
+      e.preventDefault();
+      console.log(networkDiagnostics.current.getReport());
+      // Vytvor aj window objekt pre ľahšie debugovanie
+      (window as any).networkStats = networkDiagnostics.current.getStats();
+      (window as any).gameState = gameState;
+    }
+  }, [isMobile, gameState]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space' && !isMobile) {
@@ -569,9 +570,8 @@ export default function Game() {
       });
       
       // Limituj počet renderovaných NPC podľa výkonu
-      const maxNPCs = settings.maxVisibleBubbles;
-      // Dočasne vypnuté limitovanie pre debug
-      const npcsToRender = visibleNPCs; // .slice(0, maxNPCs);
+      const maxNPCs = Math.min(settings.maxVisibleBubbles, 100); // Max 100 NPC
+      const npcsToRender = visibleNPCs.slice(0, maxNPCs);
       
       // Render NPC bubliny - bez batch renderingu kvôli problémom s kontextom
       npcsToRender.forEach(npc => {

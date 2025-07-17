@@ -4,7 +4,7 @@
 export const GAME_SETTINGS = {
 
   // 🏁 ZÁKLADNÉ NASTAVENIA
-  MIN_PLAYERS: 0,                     // Minimálny počet hráčov v hre (0 = žiadni boti)
+  MIN_PLAYERS: 8,                     // Minimálny počet hráčov v hre (8 = 7 botov + 1 hráč)
   WORLD_SIZE: {                       // Veľkosť herného sveta
     WIDTH: 3000,                      // pixely (zväčšené o 50%)
     HEIGHT: 3000                      // pixely (zväčšené o 50%)
@@ -32,7 +32,7 @@ export const GAME_SETTINGS = {
 
   // 🍽️ NPC BUBLINY (JEDLO)
   NPC_BUBBLE_SCORE: 1,                // Koľko bodov dáva jedna NPC bublina
-  NPC_DENSITY: 10000,                 // Jeden NPC na koľko pixelov² (vyššie = menej NPC)
+  NPC_DENSITY: 50000,                 // Jeden NPC na koľko pixelov² (zvýšené 5x = 5x menej NPC)
   
   // 🛡️ OCHRANA A SPAWN
   SPAWN_PROTECTION_DURATION: 3000,    // Ochrana po spawn/levelup v milisekundách
@@ -42,8 +42,8 @@ export const GAME_SETTINGS = {
   BOT_CLEANUP_INTERVAL: 30000,        // Ako často sa čistia neaktívni boti (ms)
   
   // ⚡ VÝKONNOSŤ
-  GAME_LOOP_FPS: 30,                  // Zvýšené z 25 na 30 FPS pre plynulejšiu hru
-  INPUT_UPDATE_FPS: 30,               // Optimalizované: 30 FPS (bolo 60) - stále responsívne
+  GAME_LOOP_FPS: 15,                  // Znížené na 15 FPS pre lepšiu sieťovú efektivitu
+  INPUT_UPDATE_FPS: 20,               // Znížené na 20 FPS - stále dostatočne responsívne
   
   // 🎨 VIZUÁLNE
   RING_THICKNESS: 2,                  // Hrúbka levlových kruhov
