@@ -1150,9 +1150,9 @@ export default function Game() {
       )}
       {/* Scoreboard - TOP 3 s medailami */}
       {isPlaying && gameState && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
-          <div className="bg-gradient-to-r from-gray-900/80 to-gray-800/80 px-8 py-3 rounded-2xl shadow-2xl border border-gray-700/50">
-            <div className="flex items-center gap-8">
+        <div className="absolute top-2 left-1/2 transform -translate-x-1/2">
+          <div className="bg-gradient-to-r from-gray-900/70 to-gray-800/70 px-4 py-2 rounded-xl shadow-lg border border-gray-700/30">
+            <div className="flex items-center gap-4">
               {Object.values(gameState.players)
                 .sort((a, b) => b.score - a.score)
                 .slice(0, 3)
@@ -1161,15 +1161,20 @@ export default function Game() {
                   const isMe = player.id === playerId;
                   
                   return (
-                    <div key={index} className="flex items-center gap-3">
-                      <span className="text-2xl">{medals[index]}</span>
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="text-lg">{medals[index]}</span>
                       <div className="flex flex-col">
-                        <span className={`font-semibold ${isMe ? 'text-yellow-400' : 'text-white'}`}>
-                          {player.nickname.substring(0, 12)}
+                        <span className={`text-sm font-medium ${isMe ? 'text-yellow-400' : 'text-white'}`}>
+                          {player.nickname.substring(0, 10)}
                         </span>
-                        <span className={`text-sm ${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
-                          {Math.round(player.score)} bodov
-                        </span>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={`${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
+                            Lvl {player.level}
+                          </span>
+                          <span className={`${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
+                            {Math.round(player.score)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
