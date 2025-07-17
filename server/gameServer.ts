@@ -46,6 +46,8 @@ export class GameServer {
 
   constructor(port: number = 3001) {
     console.log('🚀 Game Server štartuje - Verzia s bot turbo opravami (afda3c7)');
+    console.log('🔥🔥🔥 GAMESERVER.TS TEST - 17.7.2025 16:50 - RAILWAY KOMPILÁCIA TEST! 🔥🔥🔥');
+    console.log('🤖 Ak vidíte túto správu, Railway má najnovší gameServer.ts!');
     
     this.httpServer = createServer((req, res) => {
       // Jednoduchý health check endpoint
@@ -462,6 +464,11 @@ export class GameServer {
         
         // OPRAVA: Nastav turbo stav pre bota (rovnako ako pre skutočných hráčov)
         (bot as any).turboActive = decision.turbo;
+        
+        // 🔥 TEST RAILWAY KOMPILÁCIE - ak vidíte toto, bot turbo fix JE prítomný!
+        if (decision.turbo) {
+          console.log(`🔥 TEST: Bot ${bot.nickname} POUŽÍVA TURBO - oprava je aktívna!`);
+        }
         
         // Vypočítaj cieľovú rýchlosť
         const dx = decision.position.x - bot.position.x;
