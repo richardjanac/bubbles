@@ -86,22 +86,68 @@ export function calculatePlayerSpeed(level: number, score: number): number {
 }
 
 /**
- * Farby pre jednotlivé levely
+ * Farby pre jednotlivé levely (1-100)
  */
 export function getLevelColor(level: number): string {
-  const colors = [
-    '#FFFFFF', // Level 1 - biela
-    '#FFFACD', // Level 2 - svetložltá
-    '#FFDAB9', // Level 3 - svetlooranžová  
-    '#FFB6C1', // Level 4 - svetloružová
-    '#E6E6FA', // Level 5 - lavender
-    '#B0E0E6', // Level 6 - powder blue
-    '#98FB98', // Level 7 - pale green
-    '#DDA0DD', // Level 8 - plum
-    '#F0E68C', // Level 9 - khaki
-    '#87CEEB', // Level 10 - sky blue
-  ];
-  return colors[(level - 1) % colors.length];
+  // Základné farby pre prvých 20 levelov
+  if (level <= 20) {
+    const colors = [
+      '#FFFFFF', // Level 1 - biela
+      '#FFFACD', // Level 2 - svetložltá
+      '#FFDAB9', // Level 3 - svetlooranžová  
+      '#FFB6C1', // Level 4 - svetloružová
+      '#E6E6FA', // Level 5 - lavender
+      '#B0E0E6', // Level 6 - powder blue
+      '#98FB98', // Level 7 - pale green
+      '#DDA0DD', // Level 8 - plum
+      '#F0E68C', // Level 9 - khaki
+      '#87CEEB', // Level 10 - sky blue
+      '#FFE4E1', // Level 11 - misty rose
+      '#FFEFD5', // Level 12 - papaya whip
+      '#E0FFFF', // Level 13 - light cyan
+      '#F5FFFA', // Level 14 - mint cream
+      '#FFF8DC', // Level 15 - cornsilk
+      '#F0FFF0', // Level 16 - honeydew
+      '#F8F8FF', // Level 17 - ghost white
+      '#FDF5E6', // Level 18 - old lace
+      '#FFFAF0', // Level 19 - floral white
+      '#F5F5DC'  // Level 20 - beige
+    ];
+    return colors[level - 1];
+  }
+  
+  // Levely 21-40: Pastelové farby
+  if (level <= 40) {
+    const hue = ((level - 21) * 18) % 360; // Rozložené po celom spektre
+    return `hsl(${hue}, 60%, 80%)`;
+  }
+  
+  // Levely 41-60: Živé farby
+  if (level <= 60) {
+    const hue = ((level - 41) * 18) % 360;
+    return `hsl(${hue}, 70%, 70%)`;
+  }
+  
+  // Levely 61-80: Sýte farby
+  if (level <= 80) {
+    const hue = ((level - 61) * 18) % 360;
+    return `hsl(${hue}, 80%, 60%)`;
+  }
+  
+  // Levely 81-100: Premium farby s gradient efektom
+  if (level <= 100) {
+    const premiumColors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', // 81-85
+      '#FF9FF3', '#54A0FF', '#5F27CD', '#00D2D3', '#FF9F43', // 86-90
+      '#EE5A24', '#0084FF', '#341F97', '#6C5CE7', '#A29BFE', // 91-95
+      '#FD79A8', '#FDCB6E', '#6C5CE7', '#74B9FF', '#00B894'  // 96-100
+    ];
+    return premiumColors[(level - 81) % premiumColors.length];
+  }
+  
+  // Pre levely nad 100 - rainbow gradient
+  const hue = (level * 7) % 360;
+  return `hsl(${hue}, 90%, 50%)`;
 }
 
 // 📋 EXPORT PRE SPÄTNOSŤ S EXISTUJÚCIM KÓDOM

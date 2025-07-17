@@ -623,9 +623,15 @@ export class GameServer {
       }
       
       if (bestFood) {
+        // OPRAVA: Použij turbo pri zbieraní jedla ak je ďaleko a bot má dostatok bodov
+        const distanceToFood = this.getDistance(bot.position, bestFood.position);
+        const useFoodTurbo = distanceToFood > 120 && 
+                           bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 2 &&
+                           Math.random() < 0.3; // 30% šanca na turbo pri jedení
+        
         return {
           position: bestFood.position,
-          turbo: false
+          turbo: useFoodTurbo
         };
       }
     }
@@ -673,9 +679,12 @@ export class GameServer {
     targetX = Math.max(margin, Math.min(this.gameState.worldSize.width - margin, targetX));
     targetY = Math.max(margin, Math.min(this.gameState.worldSize.height - margin, targetY));
     
+    // OPRAVA: Použij turbo pri úteku ak je nebezpečenstvo blízko a bot má dostatok bodov
+    const useEscapeTurbo = length < 100 && bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 1.5;
+    
     return {
       position: { x: targetX, y: targetY },
-      turbo: bot.score > GAME_CONSTANTS.MIN_TURBO_SCORE * 1.5
+      turbo: useEscapeTurbo
     };
   }
 
