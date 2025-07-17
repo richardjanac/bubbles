@@ -1163,19 +1163,15 @@ export default function Game() {
                   return (
                     <div key={index} className="flex items-center gap-2">
                       <span className="text-lg">{medals[index]}</span>
-                      <div className="flex flex-col">
-                        <span className={`text-sm font-medium ${isMe ? 'text-yellow-400' : 'text-white'}`}>
-                          {player.nickname.substring(0, 10)}
-                        </span>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className={`${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
-                            Lvl {player.level}
-                          </span>
-                          <span className={`${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
-                            {Math.round(player.score)}
-                          </span>
-                        </div>
-                      </div>
+                      <span className={`text-sm font-medium ${isMe ? 'text-yellow-400' : 'text-white'}`}>
+                        {player.nickname.substring(0, 8)}
+                      </span>
+                      <span className={`text-xs ${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
+                        Lvl {player.level}
+                      </span>
+                      <span className={`text-xs ${isMe ? 'text-yellow-300' : 'text-gray-400'}`}>
+                        {Math.round(player.score)}
+                      </span>
                     </div>
                   );
                 })}
