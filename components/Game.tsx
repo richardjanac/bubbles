@@ -1146,7 +1146,7 @@ export default function Game() {
           <div className="bg-gradient-to-r from-gray-900/70 to-gray-800/70 px-4 py-2 rounded-xl shadow-lg border border-gray-700/30">
             <div className="flex items-center gap-4">
               {Object.values(gameState.players)
-                .sort((a, b) => b.score - a.score)
+                .sort((a, b) => b.level - a.level || b.score - a.score)
                 .slice(0, 3)
                 .map((player, index) => {
                   const medals = ['🥇', '🥈', '🥉'];
