@@ -560,23 +560,15 @@ export default function Game() {
         bottom: camera.y + (window.innerHeight / zoom) + bufferSize
       };
 
-      // Render NPC bubliny s viewport culling a limitom
-      const visibleNPCs: any[] = [];
+      // Render NPC bubliny s viewport culling (bez limitácie počtu)
       Object.values(gameState.npcBubbles).forEach(npc => {
-        // Skip ak je mimo viewport (s 100px bufferom)
+        // Skip ak je mimo viewport (s bufferom)
         if (npc.position.x < viewportBounds.left || npc.position.x > viewportBounds.right ||
             npc.position.y < viewportBounds.top || npc.position.y > viewportBounds.bottom) {
           return;
         }
-        visibleNPCs.push(npc);
-      });
-      
-      // Limituj počet renderovaných NPC podľa výkonu
-      const maxNPCs = Math.min(settings.maxVisibleBubbles, 100); // Max 100 NPC
-      const npcsToRender = visibleNPCs.slice(0, maxNPCs);
-      
-      // Render NPC bubliny - bez batch renderingu kvôli problémom s kontextom
-      npcsToRender.forEach(npc => {
+        
+        // Render všetky viditeľné NPC bubliny
         drawBubble(ctx, npc.position, calculateRadius(npc.score), undefined, camera, zoom);
       });
 
