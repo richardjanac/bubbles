@@ -73,6 +73,7 @@ export class GameServer {
           const allowedOrigins = [
             'https://bubbles-nrl5.vercel.app',
             'https://paddock-bubbles.vercel.app',
+            'https://web-production-3ff2a.up.railway.app',
             'http://localhost:3000', 
             'http://localhost:3001', 
             'http://localhost:3002'

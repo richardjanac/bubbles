@@ -11,7 +11,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL || (
       process.env.NODE_ENV === 'production' 
-        ? 'https://web-production-6a000.up.railway.app'
+        ? 'https://web-production-3ff2a.up.railway.app'
         : 'http://localhost:3001'
     )
   },
