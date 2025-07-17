@@ -456,6 +456,11 @@ export class GameServer {
         // OPRAVA: Nastav turbo stav pre bota (rovnako ako pre skutočných hráčov)
         (bot as any).turboActive = decision.turbo;
         
+        // PRIDANÝ DEBUG LOG PRE DIAGNOSTIKU TURBO ROZHODNUTÍ
+        if (decision.turbo) {
+          console.log(`🤖 BOT AI DECISION: ${bot.nickname} rozhodol sa použiť TURBO (skóre: ${bot.score}, cieľ: ${Math.round(decision.position.x)},${Math.round(decision.position.y)})`);
+        }
+        
         // Vypočítaj cieľovú rýchlosť
         const dx = decision.position.x - bot.position.x;
         const dy = decision.position.y - bot.position.y;
@@ -918,6 +923,11 @@ export class GameServer {
       
       // Turbo funguje len ak sa hráč pohybuje
       if (velocityMagnitude > 0) {
+        // PRIDANÝ DEBUG LOG PRE DIAGNOSTIKU SERVERA
+        if (player.isBot) {
+          console.log(`🤖 BOT TURBO: ${player.nickname} turbo=${isTurboActive}, score=${player.score}, velocity=${velocityMagnitude.toFixed(2)}`);
+        }
+        
         // Normalizuj smer pohybu - vypúšťaj bubliny ZA hráčom (opačný smer pohybu)
         const directionX = -player.velocity.x / velocityMagnitude;
         const directionY = -player.velocity.y / velocityMagnitude;
@@ -932,6 +942,11 @@ export class GameServer {
           
           // Zníž skóre hráča
           player.score = Math.max(GAME_CONSTANTS.MIN_TURBO_SCORE, player.score - 1);
+          
+          // PRIDANÝ DEBUG LOG PRE DIAGNOSTIKU
+          if (player.isBot) {
+            console.log(`🤖 BOT EJECT: ${player.nickname} vypustil bublinu, nové skóre: ${player.score}`);
+          }
         }
         
         // Aktualizuj polomer a rýchlosť hráča
