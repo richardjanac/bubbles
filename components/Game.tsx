@@ -18,6 +18,7 @@ import { DeltaHandler } from '../utils/deltaHandler';
 import { PerformanceDetector, CanvasOptimizer } from '../utils/mobileOptimizations';
 import { NetworkQualityMonitor } from '../utils/networkQualityMonitor';
 import { NetworkDiagnostics } from '../utils/networkDiagnostics';
+import { SmoothTransitionManager } from '../utils/smoothTransitions';
 
 // Lazy load heavy components
 const Joystick = dynamic(() => import('./Joystick'));
@@ -42,6 +43,7 @@ export default function Game() {
   const devicePerformance = useRef(performanceDetector.current.detectPerformance());
   const networkMonitor = useRef(new NetworkQualityMonitor());
   const networkDiagnostics = useRef(new NetworkDiagnostics());
+  const smoothTransitions = useRef(new SmoothTransitionManager());
   
   // State
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -487,9 +489,9 @@ export default function Game() {
     
     window.addEventListener('resize', handleResize);
 
-    // Adaptívna FPS optimalizácia
+    // Adaptívna FPS optimalizácia - vyšší target pre plynulosť
     const settings = devicePerformance.current.recommendedSettings;
-    const targetFPS = settings.fpsTarget;
+    const targetFPS = 60; // Vždy cieľ na 60 FPS pre plynulosť
     const frameInterval = 1000 / targetFPS;
     let lastFrameTime = 0;
 
@@ -583,13 +585,23 @@ export default function Game() {
         // Použi interpolovanú pozíciu pre ostatných hráčov, predikovanú pre lokálneho
         const renderPlayer = p.id === playerId ? predictedPlayer : (interpolatedPlayers[p.id] || p);
         
+        // Aktualizuj smooth transitions
+        smoothTransitions.current.updatePlayer(p.id, p.score, calculateRadius(p.score));
+        
+        // Použi vyhladzený radius pre rendering
+        const smoothRadius = smoothTransitions.current.getSmoothedRadius(p.id);
+        const renderPlayerWithSmoothRadius = {
+          ...renderPlayer,
+          radius: smoothRadius
+        };
+        
         // Skip ak je mimo viewport (s bufferom na veľkosť bubliny)
-        const buffer = renderPlayer.radius! + 50;
+        const buffer = smoothRadius + 50;
         if (renderPlayer.position.x < viewportBounds.left - buffer || renderPlayer.position.x > viewportBounds.right + buffer ||
             renderPlayer.position.y < viewportBounds.top - buffer || renderPlayer.position.y > viewportBounds.bottom + buffer) {
           return;
         }
-        drawPlayerBubble(ctx, renderPlayer, camera, zoom);
+        drawPlayerBubble(ctx, renderPlayerWithSmoothRadius, camera, zoom);
       });
 
       // Particle efekt vypnutý pre lepšiu výkonnosť
@@ -804,154 +816,11 @@ export default function Game() {
   };
 
   const drawUI = (ctx: CanvasRenderingContext2D, player: PlayerBubble) => {
-    if (!gameState) return;
-    
-    // Cache top players computation - update only every 500ms
-    if (!drawUI.lastUpdate || Date.now() - drawUI.lastUpdate > 500) {
-      drawUI.topPlayers = Object.values(gameState.players)
-        .sort((a, b) => b.level - a.level || b.score - a.score)
-        .slice(0, 5);
-      drawUI.lastUpdate = Date.now();
-    }
-    
-    const topPlayers = drawUI.topPlayers || [];
-    const zoom = isMobile ? 0.5 : 1.0;
-    const screenWidth = window.innerWidth / zoom;
-    
-    ctx.save();
-    
-    if (isMobile) {
-      // MOBILE: Horizontal scoreboard hore
-      const barHeight = 50;
-      const padding = 8;
-      
-      // Pozadie pre celý scoreboard
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      ctx.fillRect(0, 0, screenWidth, barHeight);
-      
-      // Player stats - ľavý roh
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 16px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`L${player.level} | ${player.score}pts`, padding, 20);
-      
-      // FPS a turbo - pod stats
-      ctx.font = '12px Arial';
-      let statusText = `Speed: ${Math.round(player.baseSpeed)}`;
-      if (turboActive) {
-        statusText += ' | 🚀 TURBO';
-        ctx.fillStyle = '#FF6B6B';
-      } else {
-        ctx.fillStyle = '#CCCCCC';
-      }
-      ctx.fillText(statusText, padding, 38);
-      
-      // TOP 3 hráči - horizontálne v strede/vpravo
-      if (topPlayers.length > 0) {
-        const leaderStartX = screenWidth * 0.35; // Začni od 35% obrazovky
-        const playerWidth = (screenWidth * 0.6) / Math.min(3, topPlayers.length); // Rozdeľ zvyšok medzi top 3
-        
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('🏆 TOP 3', leaderStartX + (playerWidth * 1.5), 15);
-        
-        topPlayers.slice(0, 3).forEach((p, index) => {
-          const x = leaderStartX + (index * playerWidth) + (playerWidth / 2);
-          
-          // Medal a nickname
-          const medal = ['🥇', '🥈', '🥉'][index];
-          ctx.fillStyle = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : '#CD7F32';
-          ctx.font = 'bold 14px Arial';
-          ctx.fillText(medal, x - 25, 30);
-          
-          // Nickname
-          ctx.fillStyle = p.id === player.id ? '#00FF00' : '#FFFFFF';
-          ctx.font = p.id === player.id ? 'bold 12px Arial' : '12px Arial';
-          const shortName = p.nickname.length > 6 ? p.nickname.substring(0, 5) + '.' : p.nickname;
-          ctx.fillText(shortName, x, 30);
-          
-          // Skóre
-          ctx.fillStyle = '#CCCCCC';
-          ctx.font = '10px Arial';
-          ctx.fillText(`${p.score}`, x, 43);
-        });
-      }
-      
-    } else {
-      // DESKTOP: Pôvodný vertikálny scoreboard
-      const baseHeight = 110;
-      const leaderboardHeight = topPlayers.length * 18 + 22;
-      const totalHeight = baseHeight + leaderboardHeight;
-      
-      // Score board v ľavom hornom rohu
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(8, 8, 200, totalHeight);
-      
-      // Player stats - kompaktnejšie
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '14px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`L${player.level} | ${player.score}pts`, 16, 28);
-      ctx.fillText(`Speed: ${Math.round(player.baseSpeed)}`, 16, 46);
-      
-      // Performance info
-      ctx.font = '12px Arial';
-      ctx.fillStyle = currentFpsRef.current < 40 ? '#FF6B6B' : currentFpsRef.current < 55 ? '#FFA500' : '#00FF00';
-      ctx.fillText(`FPS: ${currentFpsRef.current}`, 16, 64);
-      
-      // Turbo indikátor - kompaktný
-      if (turboActive) {
-        ctx.fillStyle = '#FF6B6B';
-        ctx.font = 'bold 12px Arial';
-        ctx.fillText(`🚀 TURBO`, 16, 82);
-      }
-      
-      // Separator line
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(16, 95);
-      ctx.lineTo(192, 95);
-      ctx.stroke();
-      
-      // Live Leaderboard header
-      ctx.fillStyle = '#FFD700';
-      ctx.font = 'bold 12px Arial';
-      ctx.fillText('🏆 TOP 5', 16, 112);
-      
-      // Live Leaderboard entries - optimalizované
-      ctx.font = '10px Arial';
-      topPlayers.forEach((p, index) => {
-        const y = 128 + index * 18;
-        
-        // Medal
-        ctx.fillStyle = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#FFFFFF';
-        const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}`;
-        ctx.fillText(medal, 16, y);
-        
-        // Nickname - skrátený
-        let nickname = p.nickname.length > 7 ? p.nickname.substring(0, 6) + '.' : p.nickname;
-        
-        // Zvýrazni seba
-        ctx.fillStyle = p.id === player.id ? '#00FF00' : '#FFFFFF';
-        ctx.font = p.id === player.id ? 'bold 10px Arial' : '10px Arial';
-        ctx.fillText(nickname, 38, y);
-        
-        // Stats
-        ctx.fillStyle = '#CCCCCC';
-        ctx.font = '9px Arial';
-        ctx.fillText(`L${p.level}`, 120, y);
-        ctx.fillText(`${p.score}`, 145, y);
-      });
-    }
-    
-    ctx.restore();
+    // Prázdna funkcia - všetko UI je teraz v React komponentoch
+    return;
   };
   
-  // Add static properties for caching
-  drawUI.lastUpdate = 0;
-  drawUI.topPlayers = [] as PlayerBubble[];
+  // Static properties odstránené - už nepotrebné
 
   // Bubble pop efekt vypnutý pre lepšiu výkonnosť
   const createBubblePopEffect = useCallback((position: Vector2, radius: number, color: string) => {
@@ -1279,40 +1148,29 @@ export default function Game() {
           </div>
         </div>
       )}
-              {/* Performance monitor */}
-        <div className="absolute top-4 left-4 text-white bg-black bg-opacity-75 px-3 py-2 rounded text-xs font-mono">
-          <div className="flex flex-col space-y-1">
-            <div>
-              FPS: <span className={currentFpsRef.current >= 55 ? 'text-green-400' : currentFpsRef.current >= 30 ? 'text-yellow-400' : 'text-red-400'}>
-                {currentFpsRef.current}
-              </span>
-            </div>
-            <div>
-              Ping: <span className={connectionLatency <= 50 ? 'text-green-400' : connectionLatency <= 100 ? 'text-yellow-400' : 'text-red-400'}>
-                {connectionLatency}ms
-              </span>
-            </div>
-            <div>
-              Input: <span className={inputLatency <= 50 ? 'text-green-400' : inputLatency <= 100 ? 'text-yellow-400' : 'text-red-400'}>
-                {inputLatency}ms
-              </span>
-            </div>
-            <div>
-              Render: <span className={renderLatency <= 8 ? 'text-green-400' : renderLatency <= 16 ? 'text-yellow-400' : 'text-red-400'}>
-                {renderLatency}ms
-              </span>
-            </div>
-            <div>
-              Connection: <span className={
-                connectionStatus === 'connected' ? 'text-green-400' : 
-                connectionStatus === 'connecting' ? 'text-yellow-400' : 
-                'text-red-400'
-              }>
-                {connectionStatus}
-              </span>
-            </div>
+      {/* Scoreboard - horizontálne v hornej lište */}
+      {isPlaying && gameState && (
+        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black/60 px-6 py-2 rounded-lg text-white">
+          <div className="flex items-center gap-6 text-sm">
+            {Object.values(gameState.players)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 5)
+              .map((player, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <span className={`text-xs ${player.id === playerId ? 'font-bold text-yellow-400' : 'text-gray-400'}`}>
+                    {index + 1}.
+                  </span>
+                  <span className={`inline-block w-20 truncate ${player.id === playerId ? 'font-bold text-yellow-400' : 'text-white'}`}>
+                    {player.nickname}
+                  </span>
+                  <span className={`inline-block w-10 text-right ${player.id === playerId ? 'font-bold text-yellow-400' : 'text-gray-400'}`}>
+                    {Math.round(player.score)}
+                  </span>
+                </div>
+              ))}
           </div>
         </div>
+      )}
     </div>
   );
-} 
+}

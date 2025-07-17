@@ -42,8 +42,8 @@ export const GAME_SETTINGS = {
   BOT_CLEANUP_INTERVAL: 30000,        // Ako často sa čistia neaktívni boti (ms)
   
   // ⚡ VÝKONNOSŤ
-  GAME_LOOP_FPS: 15,                  // Znížené na 15 FPS pre lepšiu sieťovú efektivitu
-  INPUT_UPDATE_FPS: 20,               // Znížené na 20 FPS - stále dostatočne responsívne
+  GAME_LOOP_FPS: 20,                  // Zvýšené na 20 FPS pre plynulejší pohyb
+  INPUT_UPDATE_FPS: 30,               // Zvýšené na 30 FPS pre lepšiu odozvu
   
   // 🎨 VIZUÁLNE
   RING_THICKNESS: 2,                  // Hrúbka levlových kruhov
